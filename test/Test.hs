@@ -4,10 +4,10 @@ module Main
 where
 
 import           Test.Tasty
-import           Test.Tasty.HUnit
+import qualified Reactive.Tomato.Signal.Test   as Signal
 
 main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [testCase "no test given" $ 1 + 1 @?= 2]
+tests = Signal.tests
