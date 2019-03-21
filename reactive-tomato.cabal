@@ -41,6 +41,7 @@ executable tomato-colocation
   hs-source-dirs:      example/tomato-colocation
   main-is:             Main.hs
   other-modules:       Model
+                     , Model.Test
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , pipes
@@ -52,3 +53,4 @@ executable tomato-colocation
                      , websockets
                      , mtl
                      , stm
+                     , containers

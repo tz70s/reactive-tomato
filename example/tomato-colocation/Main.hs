@@ -21,9 +21,12 @@ import           Control.Monad.State
 import           Data.Unique
 import           Control.Monad.Except
 import           Pipes
+import           Model
+import qualified Data.Aeson                    as JSON
+import qualified Data.ByteString.Lazy          as BSL
 
 type Client = (Unique, WS.Connection)
-type Clients = [Client]
+data Clients = Clients [Client] CurrentView
 type WSState = TVar Clients
 
 newtype WSStateT m a = WSStateT
@@ -36,13 +39,14 @@ newClient conn = do
   return (id, conn)
 
 numClients :: Clients -> Int
-numClients = length
+numClients (Clients c _) = length c
 
 addClient :: Client -> Clients -> Clients
-addClient client clients = client : clients
+addClient client (Clients clients c) = Clients (client : clients) c
 
 removeClient :: Client -> Clients -> Clients
-removeClient client = filter ((/= fst client) . fst)
+removeClient (id, _) (Clients clients view) =
+  Clients (filter ((/= id) . fst) clients) $ deleteView view id
 
 tryE :: (MonadIO m, MonadError WS.ConnectionException m) => IO a -> m a
 tryE action = do
@@ -54,32 +58,36 @@ tryE action = do
 pipeWS
   :: forall m
    . (MonadIO m, MonadState WSState m, MonadError WS.ConnectionException m)
-  => WS.Connection
+  => Client
   -> Effect m ()
-pipeWS conn = go >-> broadcast
+pipeWS (id, conn) = go >-> broadcast
  where
-  go :: Producer Text.Text m ()
+  go :: Producer IdEvent m ()
   go = do
     msg <- tryE $ WS.receiveData conn
-    yield msg
-    go
+    let evt = JSON.decode msg
+    case evt of
+      Just m  -> yield (IdEvent id m) >> go
+      Nothing -> liftIO (putStrLn "Wrong real world event format, currently simply abort this message.") >> go
 
 -- TODO: possible optimization - current broadcasting relies on single thread.
 -- Potential work around is using mailbox in pipes-concurrency and forking work-stealing threads.
 broadcast
-  :: (MonadIO m, MonadState WSState m, MonadError WS.ConnectionException m)
-  => Consumer Text.Text m ()
+  :: (MonadIO m, MonadState WSState m, MonadError WS.ConnectionException m) => Consumer IdEvent m ()
 broadcast = do
-  message <- await
-  liftIO $ Text.putStrLn $ "Broadcast message : " <> message
-  var     <- get
-  clients <- liftIO $ readTVarIO var
-  tryE $ forM_ clients $ \(id, conn) -> WS.sendTextData conn message
+  event                  <- await
+  var                    <- get
+  (Clients clients view) <- liftIO $ atomically $ go var event
+  tryE $ forM_ clients $ \(id, conn) -> WS.sendTextData conn $ encodeEach view id
   broadcast
+ where
+  go var event = do
+    modifyTVar var (\(Clients clients view) -> Clients clients $ updateView view event)
+    readTVar var
 
-echo :: (MonadIO m, MonadState WSState m) => Client -> m ()
-echo client = do
-  res <- runExceptT $ runEffect $ pipeWS (snd client)
+talk :: (MonadIO m, MonadState WSState m) => Client -> m ()
+talk client = do
+  res <- runExceptT $ runEffect $ pipeWS client
   case res of
     Left e -> do
       liftIO $ putStrLn $ "Close and remove connection, cause : " <> show
@@ -87,7 +95,7 @@ echo client = do
       -- Close out and remove client connection if any connection exception occurred.
       var <- get
       liftIO $ atomically $ modifyTVar var $ removeClient client
-    Right () -> echo client
+    Right () -> talk client
 
 -- | WS.ServerApp is type of PendingConnection -> IO (), 
 -- the model of handling websockets is thread per connection.
@@ -101,12 +109,12 @@ application pending = do
   liftIO $ putStrLn $ "New connection arrived with id : " <> (show . hashUnique . fst) client
   -- This is for some browser timeout settings (i.e. 60 seconds) to avoid leaking connection.
   liftIO $ WS.forkPingThread conn 30
-  echo client
+  talk client
 
 main :: IO ()
 main = do
   putStrLn "Start websocket server at ws://127.0.0.1:9160"
-  state <- atomically $ newTVar []
+  state <- atomically $ newTVar (Clients [] newView)
   -- TODO: is there any simpler way to integrate transformer stack?
   let handler p = (runStateT . unWSStateT) (application p) state
   let serve = (fmap . fmap) fst handler
