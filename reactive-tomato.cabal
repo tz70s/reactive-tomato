@@ -23,6 +23,7 @@ library
                      , pipes
                      , pipes-concurrency
                      , mtl
+                     , transformers
                      , stm
 
 test-suite reactive-tomato-tests
