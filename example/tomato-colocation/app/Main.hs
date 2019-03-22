@@ -21,6 +21,7 @@ import           Control.Monad.State
 import           Data.Unique
 import           Control.Monad.Except
 import           Pipes
+import qualified Pipes.Concurrent              as PC
 import           Tomato.Colocation
 import qualified Data.Aeson                    as JSON
 import qualified Data.ByteString.Lazy          as BSL
@@ -112,6 +113,14 @@ application pending = do
   -- This is for some browser timeout settings (i.e. 60 seconds) to avoid leaking connection.
   liftIO $ WS.forkPingThread conn 30
   talk client
+
+-- | Alternative, use pipes concurrency mailbox to integrate with pipes.
+-- TODO: how to make correct termination logic?
+callback :: PC.Output WS.Connection -> WS.ServerApp
+callback out pending = do
+  conn <- WS.acceptRequest pending
+  WS.forkPingThread conn 30
+  void $ atomically $ PC.send out conn
 
 main :: IO ()
 main = do

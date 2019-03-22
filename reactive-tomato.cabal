@@ -18,10 +18,12 @@ library
   default-language:    Haskell2010
   exposed-modules:     Reactive.Tomato
                      , Reactive.Tomato.Signal
+                     , Reactive.Tomato.Event
   build-depends:       base >= 4.7 && < 5
                      , pipes
                      , pipes-concurrency
                      , mtl
+                     , stm
 
 test-suite reactive-tomato-tests
   type:                exitcode-stdio-1.0
