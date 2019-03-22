@@ -27,12 +27,17 @@ import qualified Data.Aeson                    as JSON
 import qualified Data.ByteString.Lazy          as BSL
 
 type Client = (Unique, WS.Connection)
+
 data Clients = Clients [Client] CurrentView
+
 type WSState = TVar Clients
 
 newtype WSStateT m a = WSStateT
   { unWSStateT :: StateT WSState m a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadState WSState)
+
+newWSState :: IO WSState
+newWSState = newTVarIO $ Clients [] newView
 
 newClient :: (MonadIO m) => WS.Connection -> m Client
 newClient conn = do
@@ -55,6 +60,19 @@ tryE action = do
   case res of
     Left  e -> throwError (e :: WS.ConnectionException)
     Right a -> return a
+
+-- | Core logic of manage data pipeline and single connection.
+talk :: (MonadIO m, MonadState WSState m) => Client -> m ()
+talk client = do
+  res <- runExceptT $ runEffect $ pipeWS client
+  case res of
+    Left e -> do
+      liftIO $ putStrLn $ "Close and remove connection, cause : " <> show
+        (e :: WS.ConnectionException)
+      -- Close out and remove client connection if any connection exception occurred.
+      var <- get
+      liftIO $ atomically $ modifyTVar var $ removeClient client
+    Right () -> talk client
 
 pipeWS
   :: forall m
@@ -88,18 +106,6 @@ broadcast = do
     modifyTVar var (\(Clients clients view) -> Clients clients $ updateView view event)
     readTVar var
 
-talk :: (MonadIO m, MonadState WSState m) => Client -> m ()
-talk client = do
-  res <- runExceptT $ runEffect $ pipeWS client
-  case res of
-    Left e -> do
-      liftIO $ putStrLn $ "Close and remove connection, cause : " <> show
-        (e :: WS.ConnectionException)
-      -- Close out and remove client connection if any connection exception occurred.
-      var <- get
-      liftIO $ atomically $ modifyTVar var $ removeClient client
-    Right () -> talk client
-
 -- | WS.ServerApp is type of PendingConnection -> IO (), 
 -- the model of handling websockets is thread per connection.
 -- When the thread return, connection will be automatically closed.
@@ -125,7 +131,7 @@ callback out pending = do
 main :: IO ()
 main = do
   putStrLn "Start websocket server at ws://127.0.0.1:9160"
-  state <- atomically $ newTVar (Clients [] newView)
+  state <- newWSState
   -- TODO: is there any simpler way to integrate transformer stack?
   let handler p = (runStateT . unWSStateT) (application p) state
   let serve = (fmap . fmap) fst handler
