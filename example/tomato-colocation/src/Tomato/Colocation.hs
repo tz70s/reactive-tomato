@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Model
+module Tomato.Colocation
   ( RealWorldEvent(..)
   , IdEvent(..)
   , Colocation

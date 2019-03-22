@@ -4,10 +4,10 @@ module Main
 where
 
 import           Test.Tasty
-import qualified Reactive.Tomato.Signal.Test   as Signal
+import qualified Tomato.ColocationTest         as Colocation
 
 main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [Signal.tests]
+tests = Colocation.tests

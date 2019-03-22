@@ -21,7 +21,7 @@ import           Control.Monad.State
 import           Data.Unique
 import           Control.Monad.Except
 import           Pipes
-import           Model
+import           Tomato.Colocation
 import qualified Data.Aeson                    as JSON
 import qualified Data.ByteString.Lazy          as BSL
 
@@ -67,8 +67,10 @@ pipeWS (id, conn) = go >-> broadcast
     msg <- tryE $ WS.receiveData conn
     let evt = JSON.decode msg
     case evt of
-      Just m  -> yield (IdEvent id m) >> go
-      Nothing -> liftIO (putStrLn "Wrong real world event format, currently simply abort this message.") >> go
+      Just m -> yield (IdEvent id m) >> go
+      Nothing ->
+        liftIO (putStrLn "Wrong real world event format, currently simply abort this message.")
+          >> go
 
 -- TODO: possible optimization - current broadcasting relies on single thread.
 -- Potential work around is using mailbox in pipes-concurrency and forking work-stealing threads.
