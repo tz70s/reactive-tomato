@@ -10,22 +10,66 @@ module Reactive.Tomato.Event
 where
 
 import           Pipes
-import           Control.Monad                  ( forever
-                                                , forM_
-                                                )
 import qualified Pipes.Concurrent              as PC
-import           Control.Concurrent             ( forkIO
-                                                , threadDelay
-                                                )
+import qualified Pipes.Prelude                 as P
+import           Control.Monad                  ( forever )
+import           Control.Monad.Trans.Class
+import           Control.Monad.IO.Class
 
 -- | EventT is transformer that can produce value across threads.
 newtype EventT m a = EventT { unEventT :: Producer a m () }
 
-type Emit m a = a -> EventT m a
+type Emit m a b = a -> EventT m b
 
--- TODO: instances
+instance (Monad m) => Functor (EventT m) where
+  fmap f (EventT pd) = EventT $ pd >-> P.map f
 
-emit :: (MonadIO m) => PC.Output a -> Emit m a -> a -> m ()
+instance (Monad m) => Applicative (EventT m) where
+  pure  = constE
+  (<*>) = _ap
+
+instance (Monad m) => Monad (EventT m) where
+  return = pure
+  (>>=)  = _bind
+
+instance MonadTrans EventT where
+  lift m = EventT $ do
+    a <- lift m
+    yield a
+
+instance (MonadIO m) => MonadIO (EventT m) where
+  liftIO m = EventT $ do
+    a <- liftIO m
+    yield a
+
+-- TODO: revision ap and monad instance, currently it's the same as Signal (a.k.a synchronous update.)
+-- While event is not like this.
+
+_ap :: Monad m => EventT m (a -> b) -> EventT m a -> EventT m b
+_ap (EventT fs) (EventT xs) = EventT $ go fs xs
+ where
+  go fs xs = do
+    fe <- lift $ next fs
+    xe <- lift $ next xs
+    case (fe, xe) of
+      (Left _        , _             ) -> pure ()
+      (_             , Left _        ) -> pure ()
+      (Right (f, fs'), Right (x, xs')) -> yield (f x) >> go fs' xs'
+
+_bind :: Monad m => EventT m a -> (a -> EventT m b) -> EventT m b
+_bind (EventT xs) f = EventT $ do
+  xe <- lift $ next xs
+  case xe of
+    Left  _        -> pure ()
+    Right (x, xs') -> do
+      nextEle <- lift . next . unEventT $ f x
+      case nextEle of
+        Left  _      -> return ()
+        Right (n, _) -> do
+          yield n
+          unEventT $ EventT xs' >>= f
+
+emit :: (MonadIO m) => PC.Output b -> Emit m a b -> a -> m ()
 emit out emitter = wraps . emitter
  where
   wraps evt = do
@@ -42,45 +86,8 @@ reactC input consumer = do
   runEffect $ PC.fromInput input >-> consumer
   liftIO PC.performGC
 
-once :: (Monad m) => Emit m a
+once :: (Monad m) => a -> EventT m a
 once a = EventT $ yield a
 
-constE :: (Monad m) => Emit m a
+constE :: (Monad m) => a -> EventT m a
 constE a = EventT $ forever $ yield a
-
--- Applying the mapping function into separate threads
-async :: (MonadIO m) => EventT m a -> (a -> b) -> EventT m b
-async (EventT et) = undefined
-
-forkE :: (MonadIO m, Monad m) => EventT m a -> m (EventT m a)
-forkE (EventT et) = do
-  (out, input) <- liftIO $ PC.spawn PC.unbounded
-  liftIO $ forkIO $ do
-    let eff = et >-> PC.toOutput out
-    PC.performGC
-  return (EventT $ PC.fromInput input)
-
--- | Examples: expectation - unwrap mtl stack into callback.
-reactor :: Int -> (Int -> IO ()) -> IO ()
-reactor num callback = forM_ [1 .. 10] $ \nt -> forkIO $ threadDelay 1000000 >> callback (num + nt)
-
-run1 :: IO ()
-run1 = reactor 5 (\num -> print (num + 5))
-
--- | Example2: use pipes concurrency.
-run2 :: IO ()
-run2 = do
-  (output, input) <- PC.spawn PC.unbounded
-  reactor 5 $ \num -> do
-    runEffect $ yield num >-> PC.toOutput output
-    PC.performGC
-  runEffect $ for (PC.fromInput input) $ \num -> lift $ print (num + 5)
-
--- | Example3: use EventT and Emit to encapsulate concurrency.
-
-run3 :: IO ()
-run3 = do
-  (output, input) <- PC.spawn PC.unbounded
-  reactor 5 $ emit output once
-  -- This will be bounded waiting until something emit
-  reactC input $ forever $ await >>= lift . print . (+ 5)

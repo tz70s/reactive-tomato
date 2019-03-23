@@ -25,6 +25,8 @@ import qualified Pipes.Concurrent              as PC
 import           Tomato.Colocation
 import qualified Data.Aeson                    as JSON
 import qualified Data.ByteString.Lazy          as BSL
+import           Reactive.Tomato.Event
+import           Control.Concurrent             ( forkIO )
 
 type Client = (Unique, WS.Connection)
 
@@ -120,13 +122,18 @@ application pending = do
   liftIO $ WS.forkPingThread conn 30
   talk client
 
--- | Alternative, use pipes concurrency mailbox to integrate with pipes.
--- TODO: how to make correct termination logic?
-callback :: PC.Output WS.Connection -> WS.ServerApp
-callback out pending = do
-  conn <- WS.acceptRequest pending
-  WS.forkPingThread conn 30
-  void $ atomically $ PC.send out conn
+logic :: (MonadIO m) => WS.PendingConnection -> EventT m ()
+logic pending = do
+  conn <- liftIO $ WS.acceptRequest pending
+  liftIO $ WS.forkPingThread conn 30
+
+_main :: IO ()
+_main = do
+  putStrLn "Start websocket server at ws://127.0.0.1:9160"
+  (notify, wait) <- PC.spawn PC.unbounded
+  state          <- newWSState
+  forkIO $ WS.runServer "127.0.0.1" 9160 (emit notify logic)
+  react wait (\kill -> putStrLn "Terminate program")
 
 main :: IO ()
 main = do

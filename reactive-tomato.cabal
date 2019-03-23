@@ -19,6 +19,7 @@ library
   exposed-modules:     Reactive.Tomato
                      , Reactive.Tomato.Signal
                      , Reactive.Tomato.Event
+                     , Reactive.Tomato.Async
   build-depends:       base >= 4.7 && < 5
                      , pipes
                      , pipes-concurrency
