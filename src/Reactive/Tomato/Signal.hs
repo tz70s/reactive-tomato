@@ -1,5 +1,5 @@
 module Reactive.Tomato.Signal
-  ( Signal
+  ( Signal(..)
   , runSignal
   , constant
   )
@@ -37,9 +37,9 @@ _pure = Signal . forever . yield
 _ap :: Monad m => Signal m (a -> b) -> Signal m a -> Signal m b
 _ap (Signal fs) (Signal xs) = Signal $ go fs xs
  where
-  go fs xs = do
-    fe <- lift $ Pipes.next fs
-    xe <- lift $ Pipes.next xs
+  go _fs _xs = do
+    fe <- lift $ next _fs
+    xe <- lift $ next _xs
     case (fe, xe) of
       (Left _        , _             ) -> pure ()
       (_             , Left _        ) -> pure ()
@@ -47,12 +47,12 @@ _ap (Signal fs) (Signal xs) = Signal $ go fs xs
 
 _bind :: Monad m => Signal m a -> (a -> Signal m b) -> Signal m b
 _bind (Signal xs) f = Signal $ do
-  xe <- lift $ Pipes.next xs
+  xe <- lift $ next xs
   case xe of
     Left  _        -> pure ()
     Right (x, xs') -> do
-      next <- lift . Pipes.next . unSignal $ f x
-      case next of
+      _next <- lift . next . unSignal $ f x
+      case _next of
         Left  _      -> return ()
         Right (n, _) -> do
           yield n

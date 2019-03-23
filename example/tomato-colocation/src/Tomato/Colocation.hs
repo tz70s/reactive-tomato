@@ -59,21 +59,19 @@ type EmergencyRelations = [EmergencyRelation]
 
 newtype CurrentView = CurrentView { unCurrView :: Map.Map IdEvent EmergencyRelations} deriving (Eq, Show, Generic)
 
-type JSONView = Map.Map RealWorldEvent [(RealWorldEvent, EmergencyLevel)]
-
 encodeEach :: CurrentView -> Unique -> BSL.ByteString
-encodeEach (CurrentView view) id =
-  (encode . concat . trim . Map.elems . Map.filterWithKey (\(IdEvent id' _) _ -> id' == id)) view
+encodeEach (CurrentView view) _id =
+  (encode . concat . trim . Map.elems . Map.filterWithKey (\(IdEvent id' _) _ -> id' == _id)) view
   where trim = (fmap . fmap) (\(IdEvent _ evt, level) -> (evt, level))
 
 newView :: CurrentView
 newView = CurrentView Map.empty
 
 deleteView :: CurrentView -> Unique -> CurrentView
-deleteView (CurrentView view) id = CurrentView $ Map.map go $ Map.filterWithKey
-  (\(IdEvent id' _) _ -> id' /= id)
+deleteView (CurrentView view) _id = CurrentView $ Map.map go $ Map.filterWithKey
+  (\(IdEvent id' _) _ -> id' /= _id)
   view
-  where go = filter (\(IdEvent id' _, _) -> id' /= id)
+  where go = filter (\(IdEvent id' _, _) -> id' /= _id)
 
 -- | TODO: optimize & simplify, current algorithm is inefficient and too complex.
 updateView :: CurrentView -> IdEvent -> CurrentView

@@ -1,10 +1,20 @@
 module Reactive.Tomato
-  ( module Reactive.Tomato.Signal
-  , module Reactive.Tomato.Event
-  , module Reactive.Tomato.Async
+  (
+    -- * Event abstractions.
+    EventT(..)
+  , Emit
+  , emit
+  , react
+  , reactC
+  , once
+  , constE
+
+    -- * Signal abstractions.
+  , Signal(..)
+  , runSignal
+  , constant
   )
 where
 
-import qualified Reactive.Tomato.Signal
-import qualified Reactive.Tomato.Event
-import qualified Reactive.Tomato.Async
+import           Reactive.Tomato.Signal
+import           Reactive.Tomato.Event

@@ -13,8 +13,6 @@ import           Pipes
 import qualified Pipes.Concurrent              as PC
 import qualified Pipes.Prelude                 as P
 import           Control.Monad                  ( forever )
-import           Control.Monad.Trans.Class
-import           Control.Monad.IO.Class
 
 -- | EventT is transformer that can produce value across threads.
 newtype EventT m a = EventT { unEventT :: Producer a m () }
@@ -48,9 +46,9 @@ instance (MonadIO m) => MonadIO (EventT m) where
 _ap :: Monad m => EventT m (a -> b) -> EventT m a -> EventT m b
 _ap (EventT fs) (EventT xs) = EventT $ go fs xs
  where
-  go fs xs = do
-    fe <- lift $ next fs
-    xe <- lift $ next xs
+  go _fs _xs = do
+    fe <- lift $ next _fs
+    xe <- lift $ next _xs
     case (fe, xe) of
       (Left _        , _             ) -> pure ()
       (_             , Left _        ) -> pure ()

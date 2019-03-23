@@ -1,18 +1,16 @@
 module Reactive.Tomato.Async
-  ( MonadFork
+  ( MonadFork(..)
   , Async(..)
   )
 where
 
 import           Pipes
 import qualified Pipes.Concurrent              as PC
-import qualified Pipes.Prelude                 as P
 import           Control.Concurrent             ( forkIO
                                                 , ThreadId
                                                 )
-import           Control.Monad.Trans.Class
-import           Control.Monad.IO.Class
 import           Reactive.Tomato.Event
+import           Control.Monad                  ( void )
 
 -- Type class for forking thread in a general context.
 class MonadFork m where
@@ -32,7 +30,7 @@ instance (MonadFork m, MonadIO m) => Async (EventT m a) where
 _asyncE :: (MonadFork m, MonadIO m) => EventT m a -> EventT m a
 _asyncE (EventT et) = do
   (output, input) <- liftIO $ PC.spawn PC.unbounded
-  lift $ fork $ do
+  void $ lift $ fork $ do
     runEffect $ et >-> PC.toOutput output
     liftIO PC.performGC
   EventT $ PC.fromInput input
