@@ -4,7 +4,7 @@ module Main
 where
 
 import           Test.Tasty
-import qualified Tomato.ColocationTest         as Colocation
+import qualified Tomato.Colocation.Test        as Colocation
 
 main :: IO ()
 main = defaultMain tests
