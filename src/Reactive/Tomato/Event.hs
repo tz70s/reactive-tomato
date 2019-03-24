@@ -1,3 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances  #-}
+
 module Reactive.Tomato.Event
   ( EventT(..)
   , spawn
@@ -10,6 +14,8 @@ import           Pipes
 import qualified Pipes.Concurrent              as PC
 import qualified Pipes.Prelude                 as P
 import           Control.Monad                  ( forever )
+import           Control.Monad.State.Class
+import           Control.Monad.Error.Class
 
 -- | EventT is transformer that can produce value across threads.
 newtype EventT m a = EventT { unEventT :: Producer a m () }
@@ -34,6 +40,15 @@ instance (MonadIO m) => MonadIO (EventT m) where
   liftIO m = EventT $ do
     a <- liftIO m
     yield a
+
+instance MonadState s m => MonadState s (EventT m) where
+  get   = lift get
+  put   = lift . put
+  state = lift . state
+
+instance MonadError e m => MonadError e (EventT m) where
+  throwError = lift . throwError
+  catchError (EventT p0) f = EventT $ catchError p0 $ fmap unEventT f
 
 -- TODO: revision ap and monad instance, currently it's the same as Signal (a.k.a synchronous update.)
 -- While event is not like this.
@@ -72,7 +87,7 @@ _bind (EventT xs) f = EventT $ do
 spawn
   :: (MonadIO m', MonadIO m)
   => PC.Buffer b
-  -> m' ((a -> EventT m b) -> a -> m (), (b -> m' ()) -> m' ())
+  -> m' ((a -> EventT m b) -> a -> m (), Consumer b m' () -> m' ())
 spawn buffer = do
   (output, input) <- liftIO $ PC.spawn buffer
   return (_emit output, _react input)
@@ -84,9 +99,9 @@ _emit out emitter = wraps . emitter
     runEffect $ unEventT evt >-> PC.toOutput out
     liftIO PC.performGC
 
-_react :: (MonadIO m) => PC.Input a -> (a -> m ()) -> m ()
-_react input callback = do
-  runEffect $ for (PC.fromInput input) $ \v -> lift $ callback v
+_react :: (MonadIO m) => PC.Input a -> Consumer a m () -> m ()
+_react input consumer = do
+  runEffect $ PC.fromInput input >-> consumer
   liftIO PC.performGC
 
 once :: (Monad m) => a -> EventT m a
