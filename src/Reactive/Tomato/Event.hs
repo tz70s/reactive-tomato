@@ -1,9 +1,6 @@
 module Reactive.Tomato.Event
   ( EventT(..)
-  , Emit
-  , emit
-  , react
-  , reactC
+  , spawn
   , once
   , constE
   )
@@ -16,8 +13,6 @@ import           Control.Monad                  ( forever )
 
 -- | EventT is transformer that can produce value across threads.
 newtype EventT m a = EventT { unEventT :: Producer a m () }
-
-type Emit m a b = a -> EventT m b
 
 instance (Monad m) => Functor (EventT m) where
   fmap f (EventT pd) = EventT $ pd >-> P.map f
@@ -67,21 +62,31 @@ _bind (EventT xs) f = EventT $ do
           yield n
           unEventT $ EventT xs' >>= f
 
-emit :: (MonadIO m) => PC.Output b -> Emit m a b -> a -> m ()
-emit out emitter = wraps . emitter
+-- | Spawn pair of handlers for communication.
+-- 
+-- @@
+-- (emit, react) <- spawn PC.unbounded
+-- reactor 5 $ emit (\num -> EventT (yield num))
+-- react print
+-- @@
+spawn
+  :: (MonadIO m', MonadIO m)
+  => PC.Buffer b
+  -> m' ((a -> EventT m b) -> a -> m (), (b -> m' ()) -> m' ())
+spawn buffer = do
+  (output, input) <- liftIO $ PC.spawn buffer
+  return (_emit output, _react input)
+
+_emit :: (MonadIO m) => PC.Output b -> (a -> EventT m b) -> a -> m ()
+_emit out emitter = wraps . emitter
  where
   wraps evt = do
     runEffect $ unEventT evt >-> PC.toOutput out
     liftIO PC.performGC
 
-react :: (MonadIO m) => PC.Input a -> (a -> m ()) -> m ()
-react input callback = do
+_react :: (MonadIO m) => PC.Input a -> (a -> m ()) -> m ()
+_react input callback = do
   runEffect $ for (PC.fromInput input) $ \v -> lift $ callback v
-  liftIO PC.performGC
-
-reactC :: (MonadIO m) => PC.Input a -> Consumer a m () -> m ()
-reactC input consumer = do
-  runEffect $ PC.fromInput input >-> consumer
   liftIO PC.performGC
 
 once :: (Monad m) => a -> EventT m a

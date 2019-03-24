@@ -122,7 +122,7 @@ application pending = do
   liftIO $ WS.forkPingThread conn 30
   talk client
 
-logic :: (MonadIO m) => WS.PendingConnection -> EventT m ()
+logic :: (MonadIO m, MonadState WSState m) => WS.PendingConnection -> EventT m ()
 logic pending = do
   conn <- liftIO $ WS.acceptRequest pending
   liftIO $ WS.forkPingThread conn 30
@@ -130,10 +130,12 @@ logic pending = do
 _main :: IO ()
 _main = do
   putStrLn "Start websocket server at ws://127.0.0.1:9160"
-  (notify, wait) <- PC.spawn PC.unbounded
-  state          <- newWSState
-  forkIO $ WS.runServer "127.0.0.1" 9160 (emit notify logic)
-  react wait (\kill -> putStrLn "Terminate program")
+  (emit, react) <- spawn PC.unbounded
+  state         <- newWSState
+  let handler p = (runStateT . unWSStateT) (emit logic p) state
+  let serve = (fmap . fmap) fst handler
+  forkIO $ WS.runServer "127.0.0.1" 9160 serve
+  react (\kill -> putStrLn "Terminate program")
 
 main :: IO ()
 main = do

@@ -2,10 +2,7 @@ module Reactive.Tomato
   (
     -- * Event abstractions.
     EventT(..)
-  , Emit
-  , emit
-  , react
-  , reactC
+  , spawn
   , once
   , constE
 
