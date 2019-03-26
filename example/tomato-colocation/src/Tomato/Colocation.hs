@@ -67,15 +67,15 @@ encodeEach (CurrentView view) _id =
 newView :: CurrentView
 newView = CurrentView Map.empty
 
-deleteView :: CurrentView -> Unique -> CurrentView
-deleteView (CurrentView view) _id = CurrentView $ Map.map go $ Map.filterWithKey
+deleteView :: Unique -> CurrentView -> CurrentView
+deleteView _id (CurrentView view) = CurrentView $ Map.map go $ Map.filterWithKey
   (\(IdEvent id' _) _ -> id' /= _id)
   view
   where go = filter (\(IdEvent id' _, _) -> id' /= _id)
 
 -- | TODO: optimize & simplify, current algorithm is inefficient and too complex.
-updateView :: CurrentView -> IdEvent -> CurrentView
-updateView (CurrentView view) event =
+updateView :: IdEvent -> CurrentView -> CurrentView
+updateView event (CurrentView view) =
   CurrentView
     $  Map.fromList
          [ (k, v')

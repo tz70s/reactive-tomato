@@ -32,14 +32,14 @@ event2 :: IdEvent
 event2 = withId $ RealWorldEvent (4, 5) (1, 1) "event2" "event2"
 
 insert :: Assertion
-insert = updateView newView event1 @?= (CurrentView $ Map.fromList [(event1, [])])
+insert = updateView event1 newView @?= (CurrentView $ Map.fromList [(event1, [])])
 
 insert2 :: Assertion
 insert2 =
-  updateView (updateView newView event1) event2
+  (updateView event2 . updateView event1) newView
     @?= (CurrentView $ Map.fromList [(event1, [(event2, High)]), (event2, [(event1, High)])])
 
 idempotent :: Assertion
 idempotent =
-  updateView (updateView (updateView newView event1) event2) event2
+  (updateView event2 . updateView event2 . updateView event1) newView
     @?= (CurrentView $ Map.fromList [(event1, [(event2, High)]), (event2, [(event1, High)])])

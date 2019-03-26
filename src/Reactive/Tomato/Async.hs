@@ -13,7 +13,7 @@ import           Reactive.Tomato.Event
 import           Control.Monad                  ( void )
 
 -- Type class for forking thread in a general context.
-class MonadFork m where
+class (Monad m) => MonadFork m where
   fork :: m () -> m ThreadId
 
 instance MonadFork IO where

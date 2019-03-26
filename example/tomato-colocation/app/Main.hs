@@ -54,7 +54,7 @@ addClient client (Clients clients c) = Clients (client : clients) c
 
 removeClient :: Client -> Clients -> Clients
 removeClient (id, _) (Clients clients view) =
-  Clients (filter ((/= id) . fst) clients) $ deleteView view id
+  Clients (filter ((/= id) . fst) clients) $ deleteView id view
 
 tryE :: (MonadIO m, MonadError WS.ConnectionException m) => IO a -> m a
 tryE action = do
@@ -109,7 +109,7 @@ broadcast = do
   broadcast
  where
   go var event = do
-    modifyTVar var (\(Clients clients view) -> Clients clients $ updateView view event)
+    modifyTVar var (\(Clients clients view) -> Clients clients $ updateView event view)
     readTVar var
 
 -- | WS.ServerApp is type of PendingConnection -> IO (), 
@@ -189,7 +189,7 @@ broadcast2 event = do
   tryE $ forM_ clients $ \(id, conn) -> WS.sendTextData conn $ encodeEach view id
  where
   go var event = do
-    modifyTVar var (\(Clients clients view) -> Clients clients $ updateView view event)
+    modifyTVar var (\(Clients clients view) -> Clients clients $ updateView event view)
     readTVar var
 
 main :: IO ()
