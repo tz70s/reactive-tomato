@@ -19,7 +19,7 @@ library
   exposed-modules:     Reactive.Tomato
                      , Reactive.Tomato.Async
   other-modules:       Reactive.Tomato.Signal
-                     , Reactive.Tomato.Event
+                     , Reactive.Tomato.EVar
   build-depends:       base >= 4.7 && < 5
                      , pipes
                      , pipes-concurrency
@@ -30,8 +30,8 @@ library
 test-suite reactive-tomato-tests
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  main-is:             Test.hs
-  other-modules:       Reactive.Tomato.Signal.Test
+  main-is:             TestSuite.hs
+  other-modules:       Reactive.Tomato.Signal.Tests
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , tasty

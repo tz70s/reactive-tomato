@@ -126,77 +126,11 @@ application pending = do
   liftIO $ WS.forkPingThread conn 30
   talk client
 
-_main :: IO ()
-_main = do
+main :: IO ()
+main = do
   putStrLn "Start websocket server at ws://127.0.0.1:9160"
   state <- newWSState
   -- TODO: is there any simpler way to integrate transformer stack?
   let handler p = (runStateT . unWSStateT) (application p) state
-  let serve = (fmap . fmap) fst handler
-  WS.runServer "127.0.0.1" 9160 serve
-
-{-
-  Use EventT abstraction.
--}
-
-data Sem = Terminate | NonTerminate
-
-app2 :: (MonadIO m, MonadState WSState m) => WS.PendingConnection -> EventT m Sem
-app2 pending = do
-  conn <- liftIO $ WS.acceptRequest pending
-  liftIO $ WS.forkPingThread conn 30
-  var    <- get
-  client <- newClient conn
-  liftIO $ atomically $ modifyTVar var $ addClient client
-  liftIO $ putStrLn $ "New connection arrived with id : " <> (show . hashUnique . fst) client
-  talk2 client
-
-talk2 :: (MonadIO m, MonadState WSState m) => Client -> EventT m Sem
-talk2 client@(_id, conn) = do
-  res <- runExceptT $ go client
-  case res of
-    Left e -> do
-      liftIO $ putStrLn $ "Close and remove connection, cause : " <> show
-        (e :: WS.ConnectionException)
-      -- Close out and remove client connection if any connection exception occurred.
-      var <- get
-      liftIO $ atomically $ modifyTVar var $ removeClient client
-      return Terminate
-    Right () -> talk2 client
- where
-  go client0 = do
-    event <- pipe2 client0
-    broadcast2 event
-
-pipe2
-  :: (MonadIO m, MonadState WSState m)
-  => Client
-  -> ExceptT WS.ConnectionException (EventT m) IdEvent
-pipe2 client@(_id, conn) = do
-  msg <- tryE $ WS.receiveData conn
-  let evt = JSON.decode msg
-  case evt of
-    Just m -> return (IdEvent _id m)
-    Nothing ->
-      liftIO (putStrLn "Wrong real world event format, currently simply abort this message.")
-        >> pipe2 client
-
-broadcast2
-  :: (MonadIO m, MonadState WSState m) => IdEvent -> ExceptT WS.ConnectionException (EventT m) ()
-broadcast2 event = do
-  var                    <- get
-  (Clients clients view) <- liftIO $ atomically $ go var event
-  tryE $ forM_ clients $ \(id, conn) -> WS.sendTextData conn $ encodeEach view id
- where
-  go var event = do
-    modifyTVar var (\(Clients clients view) -> Clients clients $ updateView event view)
-    readTVar var
-
-main :: IO ()
-main = do
-  putStrLn "Start websocket server at ws://127.0.0.1:9160"
-  (emit, _) <- spawn PC.unbounded
-  state     <- newWSState
-  let handler p = (runStateT . unWSStateT) (emit app2 p) state
   let serve = (fmap . fmap) fst handler
   WS.runServer "127.0.0.1" 9160 serve

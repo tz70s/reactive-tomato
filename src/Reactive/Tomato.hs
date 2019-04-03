@@ -1,17 +1,14 @@
 module Reactive.Tomato
   (
-    -- * Event abstractions.
-    EventT(..)
-  , spawn
-  , once
-  , constE
-
     -- * Signal abstractions.
-  , Signal(..)
-  , runSignal
+    Signal
   , constant
+  , interpret
+
+    -- * EVar abstractions.
+  , EVar
   )
 where
 
 import           Reactive.Tomato.Signal
-import           Reactive.Tomato.Event
+import           Reactive.Tomato.EVar

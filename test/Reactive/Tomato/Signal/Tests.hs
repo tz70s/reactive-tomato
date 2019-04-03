@@ -1,4 +1,4 @@
-module Reactive.Tomato.Signal.Test
+module Reactive.Tomato.Signal.Tests
   ( tests
   )
 where
@@ -7,11 +7,9 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Control.Monad.Identity
 import           Reactive.Tomato                ( Signal
+                                                , interpret
                                                 , constant
-                                                , runSignal
                                                 )
-import           Pipes
-import qualified Pipes.Prelude                 as P
 
 tests :: TestTree
 tests = testGroup
@@ -21,8 +19,9 @@ tests = testGroup
   , testCase "Applicative instance" applicativeSignal
   ]
 
+-- TODO: we should encapuslate the unSignal function.
 sample :: Signal Identity a -> Int -> [a]
-sample s times = P.toList $ runSignal s >-> P.take times
+sample s times = take times $ interpret s
 
 constSignal :: Assertion
 constSignal = do

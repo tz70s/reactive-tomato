@@ -44,8 +44,8 @@ executable tomato-colocation
 test-suite tomato-colocation-tests
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
-  main-is:             Test.hs
-  other-modules:       Tomato.Colocation.Test
+  main-is:             TestSuite.hs
+  other-modules:       Tomato.Colocation.Tests
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , text

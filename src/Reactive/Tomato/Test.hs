@@ -2,7 +2,7 @@ module Reactive.Tomato.Test
   ()
 where
 
-import           Reactive.Tomato.Event
+import           Reactive.Tomato.Signal
 import           Reactive.Tomato.Async
 import           Pipes
 import qualified Pipes.Concurrent              as PC
@@ -34,19 +34,23 @@ run2 = do
     PC.performGC
   runEffect $ for (PC.fromInput input) $ \num -> lift $ print (num + 5)
 
--- | Example3: use EventT and Emit to encapsulate concurrency.
+-- | Example3: use Signal to eliminate callback.
 
+{-
 run3 :: IO ()
 run3 = do
   (output, input) <- PC.spawn PC.unbounded
   reactor 5 $ emit output once
   -- This will be bounded waiting until something emit
   reactC input $ forever $ await >>= lift . print . (+ 5)
+-}
 
 -- | Example4: use async to cross heavy computation.
 
+{-
 run4 :: IO ()
 run4 = do
   (output, input) <- PC.spawn PC.unbounded
   reactor 5 $ emit output $ \num -> async $ once num
   reactC input $ forever $ await >>= lift . print . (+ 5)
+-}

@@ -9,7 +9,7 @@ import qualified Pipes.Concurrent              as PC
 import           Control.Concurrent             ( forkIO
                                                 , ThreadId
                                                 )
-import           Reactive.Tomato.Event
+import           Reactive.Tomato.Signal
 import           Control.Monad                  ( void )
 
 -- Type class for forking thread in a general context.
@@ -23,14 +23,18 @@ instance MonadFork IO where
 class Async r where
   async :: r -> r
 
-instance (MonadFork m, MonadIO m) => Async (EventT m a) where
-  async = _asyncE
+instance (MonadFork m, MonadIO m) => Async (Signal m a) where
+  async = _async
 
--- Applying the mapping function into separate threads
-_asyncE :: (MonadFork m, MonadIO m) => EventT m a -> EventT m a
-_asyncE (EventT et) = do
+-- | Make the wrapping signal into seperate thread.
+--
+-- @
+-- let asyncSignal = async heavySignal
+-- @
+_async :: (MonadFork m, MonadIO m) => Signal m a -> Signal m a
+_async (Signal as) = do
   (output, input) <- liftIO $ PC.spawn PC.unbounded
   void $ lift $ fork $ do
-    runEffect $ et >-> PC.toOutput output
+    runEffect $ as >-> PC.toOutput output
     liftIO PC.performGC
-  EventT $ PC.fromInput input
+  Signal $ PC.fromInput input

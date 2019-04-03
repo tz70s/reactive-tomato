@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Tomato.Colocation.Test
+module Tomato.Colocation.Tests
   ( tests
   )
 where
