@@ -4,8 +4,12 @@
 
 module Reactive.Tomato.Signal
   ( Signal(..)
-  , interpret
   , constant
+  , bounded
+  , interpret
+  , merge
+  , mergeAll
+  , foldp
   )
 where
 
@@ -17,11 +21,17 @@ import           Control.Monad.Error.Class
 import           Control.Monad.Identity
 import           Control.Applicative
 
--- | S abstraction - the representation is isomorphic to latest value in a stream.
+-- | Signal abstraction - the representation is isomorphic to latest value in a stream.
 newtype Signal m a = Signal { unS :: Producer a m () }
 
 constant :: (Monad m) => a -> Signal m a
 constant = _pure
+
+bounded :: Monad m => [a] -> Signal m a
+bounded = Signal . go
+ where
+  go []        = return ()
+  go (x : xs') = yield x >> go xs'
 
 -- | Interpret pure signal into list, useful to inspecting signal transformation.
 interpret :: Signal Identity a -> [a]
@@ -37,7 +47,7 @@ instance Monad m => Applicative (Signal m) where
 
 instance Monad m => Alternative (Signal m) where
   empty = _empty
-  (<|>) (Signal as) (Signal bs) = undefined
+  (<|>) = _choice
 
 instance Monad m => Monad (Signal m) where
   return = _pure
@@ -79,9 +89,19 @@ _ap (Signal fs) (Signal xs) = Signal $ go fs xs
       (_             , Left _        ) -> pure ()
       (Right (f, fs'), Right (x, xs')) -> yield (f x) >> go fs' xs'
 
--- | We need a way to peek the value from producer.
+-- | FIXME: need a way to investigate this is a correct implementation.
 _choice :: Monad m => Signal m a -> Signal m a -> Signal m a
-_choice (Signal as) (Signal bs) = Signal $ go as bs where go _as _bs = undefined
+_choice (Signal as) (Signal bs) = Signal $ go as bs
+ where
+  go _as _bs = do
+    ae <- lift $ next _as
+    case ae of
+      Left _ -> do
+        be <- lift $ next _bs
+        case be of
+          Left  _        -> pure ()
+          Right (b, be') -> yield b >> go be' _as -- we'll reverse the arguments for fairness.
+      Right (a, as') -> yield a >> go _bs as'
 
 _bind :: Monad m => Signal m a -> (a -> Signal m b) -> Signal m b
 _bind (Signal xs) f = Signal $ do
@@ -95,3 +115,21 @@ _bind (Signal xs) f = Signal $ do
         Right (n, _) -> do
           yield n
           unS $ Signal xs' >>= f
+
+merge :: Monad m => Signal m a -> Signal m a -> Signal m a
+merge = _choice
+
+-- FIXME: there's an asum function which is isomorphic to this.
+-- FIXME: this isn't balance at all, should we pursuing fairness?
+mergeAll :: (Foldable t, Monad m) => t (Signal m a) -> Signal m a
+mergeAll = foldr (<|>) empty
+
+-- | Past dependent folding.
+foldp :: Monad m => (a -> s -> s) -> s -> Signal m a -> Signal m s
+foldp f s0 (Signal from) = Signal $ from >-> go s0
+ where
+  go _state = do
+    v <- await
+    let newState = f v _state
+    yield newState
+    go newState
