@@ -53,23 +53,23 @@ type Host = String
 type PortNum = Integer
 
 data ClusterInfo
-  = CInfo { host :: Host, port :: PortNum }
+  = PubSub { host :: Host, port :: PortNum }
   deriving (Show, Eq)
 
 -- | This can be expanded to multiple cluster method.
-newtype ClusterMethod = PubSub Redis.Connection
+newtype ClusterMethod = PubSubM Redis.Connection
 
 newtype Cluster m a
   = CT { unCT :: ReaderT ClusterMethod m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadReader ClusterMethod)
 
 runCluster :: (MonadIO m) => ClusterInfo -> Cluster m a -> m a
-runCluster (CInfo _host _port) (CT r) = do
+runCluster (PubSub _host _port) (CT r) = do
   pool <- liftIO $ Redis.checkedConnect Redis.defaultConnectInfo
     { Redis.connectHost = _host
     , Redis.connectPort = Redis.PortNumber . fromInteger $ _port
     }
-  runReaderT r (PubSub pool)
+  runReaderT r (PubSubM pool)
 
 -- | Create a new remote signal.
 --
@@ -84,12 +84,12 @@ runCluster (CInfo _host _port) (CT r) = do
 -- @
 remote :: (MonadIO m, MonadIO m0, Serialise a) => Sid a -> Cluster m (Signal m0 a)
 remote sid = do
-  PubSub conn <- ask
+  PubSubM conn <- ask
   return $ _subscribe conn sid
 
 spawn :: (MonadIO m, Serialise a) => Sid a -> Signal m a -> Cluster m ()
 spawn sid (Signal p) = do
-  PubSub conn <- ask
+  PubSubM conn <- ask
   lift $ runEffect $ p >-> _publish conn sid
 
 _publish :: (MonadIO m, Serialise a) => Redis.Connection -> Sid a -> Consumer a m ()

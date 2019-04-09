@@ -11,8 +11,16 @@ module Reactive.Tomato
 
     -- * EVar abstractions.
   , EVar
+  , newEVar
+  , emit
+  , events
+  , react
+
+    -- * Time function.
+  , timeEvery
   )
 where
 
 import           Reactive.Tomato.Signal
 import           Reactive.Tomato.EVar
+import           Reactive.Tomato.Time

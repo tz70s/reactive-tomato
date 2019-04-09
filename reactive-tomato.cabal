@@ -21,6 +21,7 @@ library
                      , Reactive.Tomato.Remote
   other-modules:       Reactive.Tomato.Signal
                      , Reactive.Tomato.EVar
+                     , Reactive.Tomato.Time
   build-depends:       base >= 4.7 && < 5
                      , pipes
                      , pipes-concurrency
