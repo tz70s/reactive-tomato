@@ -4,6 +4,48 @@
 -- == Overview
 --
 -- Remote preserves signal semantic as well as local settings.
+-- 
+-- Use cases:
+--
+-- === Case 1 - Distributed Counter
+--
+-- @
+-- {-# LANGUAGE OverloadedStrings #-}
+-- 
+-- import Reactive.Tomato
+-- import Reactive.Tomato.Remote
+-- 
+-- counter :: Signal m () -> Signal m Int
+-- counter = foldp (\_ s -> s + 1) 0
+-- 
+-- main :: IO ()
+-- main = runCluster (PubSub "127.0.0.1" 6379) do
+--   let cnt = counter $ every 1000
+--   -- Spawning counter into remote.
+--   spawn "cnt0" cnt
+--   -- Retrieving counter from remote.
+--   c0 <- remote "cnt0"
+-- @
+--
+-- === Case 2 - Distributed Load Balancing
+--
+-- @
+-- {-# LANGUAGE OverloadedStrings #-}
+--
+-- import Reactive.Tomato
+-- import Reactive.Tomato.Remote
+--
+-- worker :: (a -> b) -> Signal m a -> Signal m b
+-- worker = fmap
+--
+-- main :: IO ()
+-- main = runCluster (PubSub “127.0.0.1” 6379) do
+--  s0 <- remote “sig0”
+--  -- The s0 signal is the start signal
+--  -- for driving heavy computation
+--  let s1 = worker (1 + fib 200) s0
+--  -- evaluate signal...
+-- @
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
@@ -38,17 +80,6 @@ newtype Sid a = Sid { unSid :: BS.ByteString } deriving (Show)
 instance IsString (Sid a) where
   fromString = Sid . fromString
 
-{-
-  Brain storming: should we make the IO effect in the embedded monad or outside?
-
-  i.e. 
-  * @remote :: (MonadIO m, Serialise a) => Sid -> Signal m a@
-  * @remote :: Serialise a => Sid -> IO (Signal m a)@
-
-  Seems like second one is nice due to having a flexible embedded monad and clear semantic.
-  But how can we approach that?
--}
-
 type Host = String
 type PortNum = Integer
 
@@ -59,8 +90,7 @@ data ClusterInfo
 -- | This can be expanded to multiple cluster method.
 newtype ClusterMethod = PubSubM Redis.Connection
 
-newtype Cluster m a
-  = CT { unCT :: ReaderT ClusterMethod m a }
+newtype Cluster m a = CT { unCT :: ReaderT ClusterMethod m a }
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadReader ClusterMethod)
 
 runCluster :: (MonadIO m) => ClusterInfo -> Cluster m a -> m a

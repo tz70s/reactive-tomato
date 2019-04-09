@@ -1,7 +1,7 @@
 name:                reactive-tomato
 version:             0.1.0.0
-synopsis:            Distributed reactive programming with pipes.
-description:         Distributed reactive programming with pipes.
+synopsis:            Distributed reactive programming.
+description:         Distributed reactive programming.
 homepage:            https://github.com/tz70s/reactive-tomato#readme
 license:             MIT
 license-file:        LICENSE
@@ -44,4 +44,4 @@ test-suite reactive-tomato-tests
                      , mtl
                      , reactive-tomato
                      , pipes
-  ghc-options:         -Wall -threaded
+  ghc-options:         -Wall -threaded +RTS -N -RTS

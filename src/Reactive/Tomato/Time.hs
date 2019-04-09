@@ -1,5 +1,5 @@
 module Reactive.Tomato.Time
-  ( timeEvery
+  ( every
   )
 where
 
@@ -9,15 +9,14 @@ import           Reactive.Tomato.EVar
 import           Control.Monad.IO.Class
 
 -- | Spawn a signal that tick every /a/ milliseconds.
-timeEvery :: (MonadIO m, MonadIO m0) => Int -> m0 (Signal m Int)
-timeEvery intvl = do
+every :: (MonadIO m, MonadIO m0) => Int -> m0 (Signal m ())
+every intvl = do
   evar <- liftIO newEVar
-  _    <- liftIO . forkIO $ go evar 0
+  _    <- liftIO . forkIO $ go evar
   return $ events evar
 
  where
-  go evar expire = do
+  go evar = do
     threadDelay $ intvl * 1000
-    let newExpire = expire + intvl
-    emit newExpire evar
-    go evar newExpire
+    emit () evar
+    go evar

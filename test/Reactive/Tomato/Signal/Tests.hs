@@ -19,7 +19,6 @@ tests = testGroup
   , testCase "Applicative instance" applicativeSignal
   ]
 
--- TODO: we should encapuslate the unSignal function.
 sample :: Signal Identity a -> Int -> [a]
 sample s times = take times $ interpret s
 

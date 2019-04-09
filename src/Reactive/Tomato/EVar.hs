@@ -23,7 +23,7 @@ import qualified Pipes.Concurrent              as PC
 -- @
 -- main = do
 --   evar <- newEVar
---   forM [1..5] $ \num -> forkIO $ emit num
+--   forM [1..5] $ \num -> forkIO $ emit num evar
 --   -- We can get signal for free now.
 --   let sig1 = events evar
 --   let sig2 = foldp (+) 0 sig1
@@ -31,19 +31,23 @@ import qualified Pipes.Concurrent              as PC
 -- @
 newtype EVar a = EVar { unE :: (PC.Input a, PC.Output a) }
 
+-- | Create a new EVar.
 newEVar :: IO (EVar a)
 newEVar = do
   (output, input) <- PC.spawn PC.unbounded
   return $ EVar (input, output)
 
+-- | Emit value to EVar, typically in a callback function.
 emit :: a -> EVar a -> IO ()
 emit val (EVar (_, output)) = do
   runEffect $ yield val >-> PC.toOutput output
   -- TODO: this is a full GC, we need to consider remove this.
   PC.performGC
 
+-- | Convert EVar to Signal.
 events :: MonadIO m => EVar a -> Signal m a
 events (EVar (input, _)) = Signal $ PC.fromInput input
 
+-- | React Signal to perform side effects.
 react :: MonadIO m => Signal m a -> (a -> IO ()) -> m ()
 react (Signal p) f = runEffect $ for p $ \v -> liftIO $ f v

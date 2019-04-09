@@ -3,7 +3,7 @@ module Reactive.Tomato
     -- * Signal abstractions.
     Signal
   , constant
-  , bounded
+  , listGen
   , interpret
   , merge
   , mergeAll
@@ -17,7 +17,7 @@ module Reactive.Tomato
   , react
 
     -- * Time function.
-  , timeEvery
+  , every
   )
 where
 
