@@ -1,8 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Tomato.Colocation
   ( RealWorldEvent(..)
-  , IdEvent(..)
   , Colocation
   , Speed
   , EmergencyLevel(..)
@@ -11,6 +11,7 @@ module Tomato.Colocation
   , updateView
   , deleteView
   , encodeEach
+  , collision
   )
 where
 
@@ -35,17 +36,6 @@ data RealWorldEvent = RealWorldEvent
 instance ToJSON RealWorldEvent
 instance FromJSON RealWorldEvent
 
-data IdEvent = IdEvent Unique RealWorldEvent
-
-instance Eq IdEvent where
-  (IdEvent l _) == (IdEvent r _) = l == r
-
-instance Show IdEvent where
-  show (IdEvent l r) = "IdEvent (" <> (show . hashUnique) l <> ", " <> show r <> ")"
-
-instance Ord IdEvent where
-  compare (IdEvent l _) (IdEvent r _) = compare l r
-
 data EmergencyLevel
   = Low
   | High
@@ -54,63 +44,49 @@ data EmergencyLevel
 instance ToJSON EmergencyLevel
 instance FromJSON EmergencyLevel
 
-type EmergencyRelation = (IdEvent, EmergencyLevel)
-type EmergencyRelations = [EmergencyRelation]
-
-newtype CurrentView = CurrentView { unCurrView :: Map.Map IdEvent EmergencyRelations} deriving (Eq, Show, Generic)
-
-encodeEach :: CurrentView -> Unique -> BSL.ByteString
-encodeEach (CurrentView view) _id =
-  (encode . concat . trim . Map.elems . Map.filterWithKey (\(IdEvent id' _) _ -> id' == _id)) view
-  where trim = (fmap . fmap) (\(IdEvent _ evt, level) -> (evt, level))
+newtype CurrentView = CurrView (Map.Map Unique RealWorldEvent) deriving (Eq, Ord)
 
 newView :: CurrentView
-newView = CurrentView Map.empty
+newView = CurrView Map.empty
 
 deleteView :: Unique -> CurrentView -> CurrentView
-deleteView _id (CurrentView view) = CurrentView $ Map.map go $ Map.filterWithKey
-  (\(IdEvent id' _) _ -> id' /= _id)
-  view
-  where go = filter (\(IdEvent id' _, _) -> id' /= _id)
+deleteView uid (CurrView m) = CurrView $ Map.delete uid m
 
--- | TODO: optimize & simplify, current algorithm is inefficient and too complex.
-updateView :: IdEvent -> CurrentView -> CurrentView
-updateView event (CurrentView view) =
-  CurrentView
-    $  Map.fromList
-         [ (k, v')
-         | (k, v) <- Map.toList view
-         , k /= event
-         , let v' = if checkExist event v
-                 then replace event k v
-                 else v <> [(event, collision k event)]
-         ]
-    <> insertIfNotExist event view
+updateView :: Unique -> RealWorldEvent -> CurrentView -> CurrentView
+updateView uid evt (CurrView m) = CurrView $ Map.insert uid evt m
 
--- Helper functions for update.
+relations :: Unique -> CurrentView -> Maybe EmergencyRelations
+relations uid (CurrView m) = do
+  value <- Map.lookup uid m
+  return $ foldr (go value) [] m
+ where
+  go v entry xs | entry == v = xs
+                | otherwise  = EmergencyRelation entry (collision entry v) : xs
 
-insertIfNotExist
-  :: IdEvent -> Map.Map IdEvent EmergencyRelations -> Map.Map IdEvent EmergencyRelations
-insertIfNotExist event view = Map.fromList
-  [ ( event
-    , [ (evt, level) | (evt, _) <- Map.toList view, evt /= event, let level = collision evt event ]
-    )
-  ]
+data EmergencyRelation = EmergencyRelation RealWorldEvent EmergencyLevel deriving (Show, Generic)
 
--- | Check whether event is existed in relations, used for guard insertion.
-checkExist :: IdEvent -> EmergencyRelations -> Bool
-checkExist evt = any (\r -> evt == fst r)
+instance ToJSON EmergencyRelation where
+  toJSON (EmergencyRelation realE level) = object
+    [ "location" .= location realE
+    , "speed" .= speed realE
+    , "device" .= device realE
+    , "name" .= name realE
+    , "level" .= level
+    ]
+instance FromJSON EmergencyRelation
 
--- | Replace emergency value in relations.
-replace :: IdEvent -> IdEvent -> EmergencyRelations -> EmergencyRelations
-replace src dst rels =
-  [ r | x <- rels, let r = if fst x == src then (src, collision src dst) else x ]
+type EmergencyRelations = [EmergencyRelation]
+
+encodeEach :: Unique -> CurrentView -> Maybe BSL.ByteString
+encodeEach uid view = do
+  rel <- relations uid view
+  return $ encode rel
 
 distance :: Colocation -> Colocation -> Double
 distance (long1, lat1) (long2, lat2) = sqrt $ (long1 - long2) ** 2 + (lat1 - lat2) ** 2
 
-collision :: IdEvent -> IdEvent -> EmergencyLevel
-collision (IdEvent _ evt1) (IdEvent _ evt2) = if dist < 10 then High else Low
+collision :: RealWorldEvent -> RealWorldEvent -> EmergencyLevel
+collision evt1 evt2 = if dist < 10 then High else Low
  where
   loc1 = location evt1
   loc2 = location evt2

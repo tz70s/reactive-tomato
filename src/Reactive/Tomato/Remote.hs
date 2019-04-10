@@ -90,7 +90,7 @@ data ClusterInfo
 -- | This can be expanded to multiple cluster method.
 newtype ClusterMethod = PubSubM Redis.Connection
 
-newtype Cluster m a = CT { unCT :: ReaderT ClusterMethod m a }
+newtype Cluster m a = CT (ReaderT ClusterMethod m a)
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadReader ClusterMethod)
 
 runCluster :: (MonadIO m) => ClusterInfo -> Cluster m a -> m a

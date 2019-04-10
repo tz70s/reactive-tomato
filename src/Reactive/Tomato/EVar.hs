@@ -29,7 +29,7 @@ import qualified Pipes.Concurrent              as PC
 --   let sig2 = foldp (+) 0 sig1
 --   react sig2 print
 -- @
-newtype EVar a = EVar { unE :: (PC.Input a, PC.Output a) }
+newtype EVar a = EVar (PC.Input a, PC.Output a)
 
 -- | Create a new EVar.
 newEVar :: IO (EVar a)

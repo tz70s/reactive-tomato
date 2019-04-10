@@ -63,14 +63,10 @@ tryE action = do
     Left  e -> throwError (e :: WS.ConnectionException)
     Right a -> return a
 
-{-
-  Use ordinary pipes.
--}
-
 -- | Core logic of manage data pipeline and single connection.
 talk :: (MonadIO m, MonadState WSState m) => Client -> m ()
 talk client = do
-  res <- runExceptT $ runEffect $ pipeWS client
+  res <- runExceptT $ runEffect $ processEvt client
   case res of
     Left e -> do
       liftIO $ putStrLn $ "Close and remove connection, cause : " <> show
@@ -80,37 +76,36 @@ talk client = do
       liftIO $ atomically $ modifyTVar var $ removeClient client
     Right () -> talk client
 
-pipeWS
+processEvt
   :: forall m
    . (MonadIO m, MonadState WSState m, MonadError WS.ConnectionException m)
   => Client
   -> Effect m ()
-pipeWS (id, conn) = go >-> broadcast
+processEvt (uid, conn) = extract >-> broadcast
  where
-  go :: Producer IdEvent m ()
-  go = do
+  extract = do
     msg <- tryE $ WS.receiveData conn
     let evt = JSON.decode msg
     case evt of
-      Just m -> yield (IdEvent id m) >> go
+      Just m -> update m >>= yield >> extract
       Nothing ->
         liftIO (putStrLn "Wrong real world event format, currently simply abort this message.")
-          >> go
+          >> extract
 
--- TODO: possible optimization - current broadcasting relies on single thread.
--- Potential work around is using mailbox in pipes-concurrency and forking work-stealing threads.
+  update realE = do
+    var <- get
+    liftIO . atomically $ do
+      (Clients clients view) <- readTVar var
+      let updated = Clients clients $ updateView uid realE view
+      writeTVar var updated
+      return updated
+
 broadcast
-  :: (MonadIO m, MonadState WSState m, MonadError WS.ConnectionException m) => Consumer IdEvent m ()
+  :: (MonadIO m, MonadState WSState m, MonadError WS.ConnectionException m) => Consumer Clients m ()
 broadcast = do
-  event                  <- await
-  var                    <- get
-  (Clients clients view) <- liftIO $ atomically $ go var event
-  tryE $ forM_ clients $ \(id, conn) -> WS.sendTextData conn $ encodeEach view id
+  (Clients clients view) <- await
+  tryE $ forM_ clients $ \(uid, conn) -> forM_ (encodeEach uid view) (WS.sendTextData conn)
   broadcast
- where
-  go var event = do
-    modifyTVar var (\(Clients clients view) -> Clients clients $ updateView event view)
-    readTVar var
 
 -- | WS.ServerApp is type of PendingConnection -> IO (), 
 -- the model of handling websockets is thread per connection.

@@ -23,6 +23,7 @@ library
                      , bytestring
                      , aeson
                      , containers
+                     , array
 
 executable tomato-colocation
   hs-source-dirs:      app
