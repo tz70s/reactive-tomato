@@ -14,7 +14,7 @@ module Reactive.Tomato.Signal
 where
 
 import           Pipes
-import           Pipes.Prelude                 as PP
+import qualified Pipes.Prelude                 as PP
 import           Control.Monad                  ( forever )
 import           Control.Monad.State.Class
 import           Control.Monad.Error.Class
