@@ -18,7 +18,8 @@ import           Data.Text                     as Text
 tests :: TestTree
 tests = testGroup
   "Tomato Colocation Tests"
-  [ testCase "Insert from empty map"               insert
+  [ testProperty "Insert from empty map" prop_insert
+--  , testProperty "Replace event when insert multiple times" prop_replace
   , testCase "Insert two event and build relation" insert2
   , testCase "Insertion should be idempotent"      idempotent
   ]
@@ -48,18 +49,11 @@ event2 = withId $ RealWorldEvent (4, 5) (1, 1) "event2" "event2"
 prop_insert :: IdEvent -> Bool
 prop_insert evt = updateView evt newView == (CurrentView $ Map.fromList [(evt, [])])
 
-prop_insert2 :: IdEvent -> IdEvent -> Bool
-prop_insert2 evt1 evt2 =
-  (updateView evt2 . updateView evt1) newView
-    == (CurrentView $ Map.fromList [(evt1, [(evt2, High)]), (evt2, [(evt1, High)])])
-
-prop_idempotent :: IdEvent -> IdEvent -> Bool
-prop_idempotent evt1 evt2 =
-  (updateView evt2 . updateView evt2 . updateView evt1) newView
-    == (CurrentView $ Map.fromList [(evt1, [(evt2, High)]), (evt2, [(evt1, High)])])
-
-insert :: Assertion
-insert = updateView event1 newView @?= (CurrentView $ Map.fromList [(event1, [])])
+-- TODO: current replacement is not correct.
+prop_replace :: Int -> IdEvent -> Bool
+prop_replace times evt =
+  Prelude.foldr (\_ view -> updateView evt view) newView [1 .. times]
+    == (CurrentView $ Map.fromList [(evt, [])])
 
 insert2 :: Assertion
 insert2 =
