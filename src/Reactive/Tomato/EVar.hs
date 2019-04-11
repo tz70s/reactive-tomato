@@ -10,6 +10,7 @@ where
 import           Reactive.Tomato.Signal
 import           Pipes
 import qualified Pipes.Concurrent              as PC
+import           Control.Concurrent.STM
 
 -- | An event var for composition from callbacks.
 -- In Haskell, we're encouraged to use existing green thread system.
@@ -29,24 +30,33 @@ import qualified Pipes.Concurrent              as PC
 --   let sig2 = foldp (+) 0 sig1
 --   react sig2 print
 -- @
-newtype EVar a = EVar (PC.Input a, PC.Output a)
+--
+-- == Notice
+--
+-- Currently, the EVar should be carefully maintained lifecycle to be avoid garbage collected,
+-- due to we rely on pipes-concurrency. 
+-- Otherwise, the events signal may be terminated.
+-- 
+-- See 'Timer' implementation as reference.
+--
+-- We should lift this restriction in the future.
+newtype EVar a = EVar (PC.Output a, PC.Input a, STM ())
 
 -- | Create a new EVar.
 newEVar :: IO (EVar a)
 newEVar = do
-  (output, input) <- PC.spawn PC.unbounded
-  return $ EVar (input, output)
+  (output, input, seal) <- PC.spawn' PC.unbounded
+  return $ EVar (output, input, seal)
 
 -- | Emit value to EVar, typically in a callback function.
 emit :: a -> EVar a -> IO ()
-emit val (EVar (_, output)) = do
-  runEffect $ yield val >-> PC.toOutput output
-  -- TODO: this is a full GC, we need to consider remove this.
-  PC.performGC
+emit val (EVar (output, _, _)) = runEffect $ yield val >-> PC.toOutput output
 
 -- | Convert EVar to Signal.
+--
+-- Problem: if output is terminated, the input will be terminated as well.
 events :: MonadIO m => EVar a -> Signal m a
-events (EVar (input, _)) = Signal $ PC.fromInput input
+events (EVar (_, input, _)) = Signal $ PC.fromInput input
 
 -- | React Signal to perform side effects.
 react :: MonadIO m => Signal m a -> (a -> IO ()) -> m ()

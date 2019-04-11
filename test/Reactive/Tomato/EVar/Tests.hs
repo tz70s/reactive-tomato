@@ -10,11 +10,11 @@ import           Control.Concurrent
 
 tests :: TestTree
 tests =
-  testGroup "EVar Tests" [testCase "Use EVar to get events from callback" getEventsFromCallback]
+  testGroup "EVar Tests" [testCase "Use EVar to get event from callback" testGetEventFromCallback]
 
-getEventsFromCallback :: Assertion
-getEventsFromCallback = do
+testGetEventFromCallback :: Assertion
+testGetEventFromCallback = do
   evar <- newEVar
-  _ <- forkIO $ emit (1 :: Int) evar
+  _    <- forkIO $ emit (1 :: Int) evar
   let sig1 = events evar
   react sig1 $ \num -> num @?= 1

@@ -15,10 +15,10 @@ import           Reactive.Tomato
 tests :: TestTree
 tests = testGroup
   "Signal Tests"
-  [ testCase "Constant constructor" constSignal
-  , testCase "Functor instance"     functorSignal
-  , testCase "Applicative instance" applicativeSignal
-  , testCase "Correct foldp semantic for implementing counter" folding
+  [ testCase "Constant constructor" testConstant
+  , testCase "Functor instance"     testFunctor
+  , testCase "Applicative instance" testApplicative
+  , testCase "Correct foldp semantic for implementing counter" testFolding
   , testProperty "Functor identity law"     prop_functor_identity
   , testProperty "Functor composition law"  prop_functor_composition
   , testProperty "Correct filterp semantic" prop_filterp
@@ -36,23 +36,23 @@ instance Arbitrary a => Arbitrary (Signal Identity a) where
 _sample :: Signal Identity a -> Int -> [a]
 _sample s times = take times $ interpret s
 
-constSignal :: Assertion
-constSignal = do
+testConstant :: Assertion
+testConstant = do
   let signal = constant (10 :: Int)
   _sample signal 10 @?= [ 10 | _ <- [1 .. 10] :: [Int] ]
 
-functorSignal :: Assertion
-functorSignal = do
+testFunctor :: Assertion
+testFunctor = do
   let signal = (+ 1) <$> constant (10 :: Int)
   _sample signal 10 @?= [ 11 | _ <- [1 .. 10] :: [Int] ]
 
-applicativeSignal :: Assertion
-applicativeSignal = do
+testApplicative :: Assertion
+testApplicative = do
   let signal = constant (+ 1) <*> constant (10 :: Int)
   _sample signal 10 @?= [ 11 | _ <- [1 .. 10] :: [Int] ]
 
-folding :: Assertion
-folding = do
+testFolding :: Assertion
+testFolding = do
   let counter = foldp (\_ s -> s + 1) 0 $ constant ()
   _sample counter 10 @?= ([1 .. 10] :: [Int])
 

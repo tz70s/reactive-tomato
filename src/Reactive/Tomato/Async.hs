@@ -11,7 +11,7 @@ import qualified Pipes.Concurrent              as PC
 import           Control.Concurrent      hiding ( yield )
 import           Reactive.Tomato.Signal
 import           Control.Monad                  ( void )
-import           Control.Applicative
+import           Control.Concurrent.STM
 
 -- Type class for forking thread in a general context.
 class (Monad m) => MonadFork m where
@@ -27,10 +27,10 @@ instance MonadFork IO where
 -- @
 async :: (MonadFork m, MonadIO m) => Signal m a -> Signal m a
 async (Signal as) = do
-  (output, input) <- liftIO $ PC.spawn PC.unbounded
+  (output, input, seal) <- liftIO $ PC.spawn' PC.unbounded
   void $ lift $ fork $ do
     runEffect $ as >-> PC.toOutput output
-    liftIO PC.performGC
+    liftIO $ atomically seal
   Signal $ PC.fromInput input
 
 -- | Merge two signal by interleaving event occurrences.
@@ -63,13 +63,13 @@ merge s1 s2 = mergeAll [s1, s2]
 -- the only guarantee is we preserved the FIFO ordering in each signal
 mergeAll :: (MonadFork m, MonadIO m) => [Signal m a] -> Signal m a
 mergeAll xs = Signal $ do
-  (output, input) <- liftIO $ PC.spawn PC.unbounded
-  go output xs
+  (output, input, seal) <- liftIO $ PC.spawn' PC.unbounded
+  go output seal xs
   PC.fromInput input
  where
-  go output []               = return ()
-  go output (Signal p : xs') = do
+  go _      _    []               = return ()
+  go output seal (Signal p : xs') = do
     void . lift . fork $ do
       runEffect $ p >-> PC.toOutput output
-      liftIO PC.performGC
-    go output xs'
+      liftIO $ atomically seal
+    go output seal xs'

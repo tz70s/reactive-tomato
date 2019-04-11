@@ -16,7 +16,12 @@ module Reactive.Tomato
   , react
 
     -- * Time function.
+  , Timer
   , every
+  , start
+  , throttle
+  , snapshot
+  , window
 
     -- * Asynchronous utitilies.
   , module Reactive.Tomato.Async
