@@ -19,8 +19,9 @@ tests = testGroup
   , testCase "Functor instance"     functorSignal
   , testCase "Applicative instance" applicativeSignal
   , testCase "Correct foldp semantic for implementing counter" folding
-  , testProperty "Functor identity law"    prop_functor_identity
-  , testProperty "Functor composition law" prop_functor_composition
+  , testProperty "Functor identity law"     prop_functor_identity
+  , testProperty "Functor composition law"  prop_functor_composition
+  , testProperty "Correct filterp semantic" prop_filterp
   ]
 
 instance Show a => Show (Signal Identity a) where
@@ -61,3 +62,8 @@ prop_functor_identity times sig = _sample (fmap id sig) times == _sample sig tim
 prop_functor_composition :: Int -> Signal Identity Int -> Fun Int Int -> Fun Int Int -> Bool
 prop_functor_composition times sig (Fun _ f) (Fun _ g) =
   _sample (fmap (f . g) sig) times == _sample (fmap f . fmap g $ sig) times
+
+prop_filterp :: Int -> Bool
+prop_filterp times = _sample (filterp (\s -> s `mod` 2 == 0) cnt) times
+  == take times ([2, 4 ..] :: [Int])
+  where cnt = foldp (\_ s -> s + 1) 0 $ constant ()

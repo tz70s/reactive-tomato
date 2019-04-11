@@ -7,6 +7,7 @@ module Reactive.Tomato
   , interpret
   , merge
   , mergeAll
+  , filterp
   , foldp
 
     -- * EVar abstractions.

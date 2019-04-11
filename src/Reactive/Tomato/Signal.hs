@@ -9,6 +9,7 @@ module Reactive.Tomato.Signal
   , interpret
   , merge
   , mergeAll
+  , filterp
   , foldp
   )
 where
@@ -138,11 +139,21 @@ merge = _choice
 mergeAll :: (Foldable t, Monad m) => t (Signal m a) -> Signal m a
 mergeAll = asum
 
+-- | Filter elements with predicate function.
+--
+-- @
+-- let cnt = foldp (+) 0 $ constant 1
+-- let even = filterp (\i -> i `mod` 2 == 0) cnt
+-- interpret even == [2, 4 ..]
+-- @
+filterp :: Monad m => (a -> Bool) -> Signal m a -> Signal m a
+filterp f (Signal p) = Signal $ p >-> PP.filter f
+
 -- | Past dependent folding.
 --
 -- @
--- let counter = foldp (\i s -> s + i) 0 $ constant 1
--- interpret counter = [0..]
+-- let counter = foldp (+) 0 $ constant 1
+-- interpret counter == [1..]
 -- @
 foldp :: Monad m => (a -> s -> s) -> s -> Signal m a -> Signal m s
 foldp f s0 (Signal from) = Signal $ from >-> go s0
