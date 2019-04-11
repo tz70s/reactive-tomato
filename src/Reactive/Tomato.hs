@@ -5,8 +5,6 @@ module Reactive.Tomato
   , constant
   , listGen
   , interpret
-  , merge
-  , mergeAll
   , filterp
   , foldp
 

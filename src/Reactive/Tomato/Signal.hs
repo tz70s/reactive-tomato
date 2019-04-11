@@ -7,8 +7,6 @@ module Reactive.Tomato.Signal
   , constant
   , listGen
   , interpret
-  , merge
-  , mergeAll
   , filterp
   , foldp
   )
@@ -21,7 +19,6 @@ import           Control.Monad.State.Class
 import           Control.Monad.Error.Class
 import           Control.Monad.Identity
 import           Control.Applicative
-import           Data.Foldable
 
 -- | Signal abstraction - the representation is isomorphic to latest value in a stream.
 newtype Signal m a = Signal { unS :: Producer a m () }
@@ -100,7 +97,6 @@ _ap (Signal fs) (Signal xs) = Signal $ go fs xs
       (_             , Left _        ) -> pure ()
       (Right (f, fs'), Right (x, xs')) -> yield (f x) >> go fs' xs'
 
--- FIXME: need a way to investigate this is a correct implementation.
 _choice :: Monad m => Signal m a -> Signal m a -> Signal m a
 _choice (Signal as) (Signal bs) = Signal $ go as bs
  where
@@ -111,9 +107,9 @@ _choice (Signal as) (Signal bs) = Signal $ go as bs
         be <- lift $ next _bs
         case be of
           Left  _        -> pure ()
-          -- Reverse the arguments for fairness.
-          Right (b, be') -> yield b >> go be' _as
-      Right (a, as') -> yield a >> go _bs as'
+          -- TODO - possible optimize? We already know that _as is terminated, then we can reduce the calling it?
+          Right (b, be') -> yield b >> go _as be'
+      Right (a, as') -> yield a >> go as' _bs
 
 _bind :: Monad m => Signal m a -> (a -> Signal m b) -> Signal m b
 _bind (Signal xs) f = Signal $ do
@@ -127,17 +123,6 @@ _bind (Signal xs) f = Signal $ do
         Right (n, _) -> do
           yield n
           unS $ Signal xs' >>= f
-
--- | Merge two signal by interleaving event occurrences.
--- 
--- Comparing to merging in applicative instance, i.e. @liftA2 (+) (constant 1) (constant 2)@,
--- the events are propagated \asynchronously\.
-merge :: Monad m => Signal m a -> Signal m a -> Signal m a
-merge = _choice
-
--- FIXME: this isn't balance at all, should we pursuing fairness?
-mergeAll :: (Foldable t, Monad m) => t (Signal m a) -> Signal m a
-mergeAll = asum
 
 -- | Filter elements with predicate function.
 --
