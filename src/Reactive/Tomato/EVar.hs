@@ -8,7 +8,7 @@ module Reactive.Tomato.EVar
 where
 
 import           Reactive.Tomato.Signal
-import           Pipes
+import           Pipes                   hiding ( await )
 import qualified Pipes.Concurrent              as PC
 import           Control.Concurrent.STM
 

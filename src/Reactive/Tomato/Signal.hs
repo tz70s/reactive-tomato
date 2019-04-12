@@ -6,9 +6,10 @@ module Reactive.Tomato.Signal
   ( Signal(..)
   , constant
   , listGen
-  , interpret
   , filterp
   , foldp
+  , interpret
+  , interpretM
   )
 where
 
@@ -41,10 +42,6 @@ constant = _pure
 -- @
 listGen :: Monad m => [a] -> Signal m a
 listGen = Signal . go where go = foldr ((>>) . yield) mempty
-
--- | Interpret pure signal into list, useful to inspecting signal transformation.
-interpret :: Signal Identity a -> [a]
-interpret = PP.toList . unS
 
 instance Monad m => Functor (Signal m) where
   fmap f (Signal as) = Signal $ as >-> PP.map f
@@ -148,3 +145,10 @@ foldp f s0 (Signal from) = Signal $ from >-> go s0
     let newState = f v _state
     yield newState
     go newState
+
+-- | Interpret pure signal into list, useful to inspecting signal transformation.
+interpret :: Signal Identity a -> [a]
+interpret = PP.toList . unS
+
+interpretM :: Monad m => Signal m a -> m [a]
+interpretM (Signal p) = PP.toListM p

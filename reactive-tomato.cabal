@@ -38,6 +38,7 @@ test-suite reactive-tomato-tests
   main-is:             TestSuite.hs
   other-modules:       Reactive.Tomato.Signal.Tests
                      , Reactive.Tomato.EVar.Tests
+                     , Reactive.Tomato.Time.Tests
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , tasty

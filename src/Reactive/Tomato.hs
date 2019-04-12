@@ -4,9 +4,10 @@ module Reactive.Tomato
     Signal
   , constant
   , listGen
-  , interpret
   , filterp
   , foldp
+  , interpret
+  , interpretM
 
     -- * EVar abstractions.
   , EVar
