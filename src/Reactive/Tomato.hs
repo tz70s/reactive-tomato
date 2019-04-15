@@ -4,10 +4,12 @@ module Reactive.Tomato
     Signal
   , constant
   , listGen
-  , filterp
+  , filter
+  , filterJust
   , foldp
   , interpret
   , interpretM
+  , take
 
     -- * EVar abstractions.
   , EVar
@@ -32,6 +34,7 @@ module Reactive.Tomato
   )
 where
 
+import           Prelude                hiding (filter, take)
 import           Reactive.Tomato.Signal
 import           Reactive.Tomato.EVar
 import           Reactive.Tomato.Time

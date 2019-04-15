@@ -11,6 +11,7 @@ import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 import           Control.Monad.Identity
 import           Reactive.Tomato
+import           Prelude               hiding (filter)
 
 tests :: TestTree
 tests = testGroup
@@ -21,7 +22,7 @@ tests = testGroup
   , testCase "Correct foldp semantic for implementing counter" testFolding
   , testProperty "Functor identity law"     prop_functor_identity
   , testProperty "Functor composition law"  prop_functor_composition
-  , testProperty "Correct filterp semantic" prop_filterp
+  , testProperty "Correct filter semantic" prop_filter
   ]
 
 instance Show a => Show (Signal Identity a) where
@@ -34,7 +35,7 @@ instance Arbitrary a => Arbitrary (Signal Identity a) where
   arbitrary = arbitrarySignal
 
 _sample :: Signal Identity a -> Int -> [a]
-_sample s times = take times $ interpret s
+_sample s times = Prelude.take times $ interpret s
 
 testConstant :: Assertion
 testConstant = do
@@ -63,7 +64,7 @@ prop_functor_composition :: Int -> Signal Identity Int -> Fun Int Int -> Fun Int
 prop_functor_composition times sig (Fun _ f) (Fun _ g) =
   _sample (fmap (f . g) sig) times == _sample (fmap f . fmap g $ sig) times
 
-prop_filterp :: Int -> Bool
-prop_filterp times = _sample (filterp (\s -> s `mod` 2 == 0) cnt) times
-  == take times ([2, 4 ..] :: [Int])
+prop_filter :: Int -> Bool
+prop_filter times = _sample (filter (\s -> s `mod` 2 == 0) cnt) times
+  == Prelude.take times ([2, 4 ..] :: [Int])
   where cnt = foldp (\_ s -> s + 1) 0 $ constant ()

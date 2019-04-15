@@ -6,13 +6,16 @@ module Reactive.Tomato.Signal
   ( Signal(..)
   , constant
   , listGen
-  , filterp
+  , filter
+  , filterJust
   , foldp
   , interpret
   , interpretM
+  , take
   )
 where
 
+import           Prelude                       hiding (filter, take)
 import           Pipes
 import qualified Pipes.Prelude                 as PP
 import           Control.Monad                  ( forever )
@@ -125,11 +128,27 @@ _bind (Signal xs) f = Signal $ do
 --
 -- @
 -- let cnt = foldp (+) 0 $ constant 1
--- let even = filterp (\i -> i `mod` 2 == 0) cnt
+-- let even = filter (\i -> i `mod` 2 == 0) cnt
 -- interpret even == [2, 4 ..]
 -- @
-filterp :: Monad m => (a -> Bool) -> Signal m a -> Signal m a
-filterp f (Signal p) = Signal $ p >-> PP.filter f
+filter :: Monad m => (a -> Bool) -> Signal m a -> Signal m a
+filter f (Signal p) = Signal $ p >-> PP.filter f
+
+-- | Extract maybe elements into only just value.
+--
+-- @
+-- let sig0 = listGen [Just 1, Just 2, Nothing, Just 3, Nothing]
+-- let sig1 = filterJust sig0
+-- interpret sig1 == [1, 2, 3]
+-- @
+filterJust :: Monad m => Signal m (Maybe a) -> Signal m a
+filterJust (Signal p) = Signal $ p >-> extract
+  where
+    extract = do
+      v <- await
+      case v of
+        Just x -> yield x >> extract
+        Nothing -> extract
 
 -- | Past dependent folding.
 --
@@ -152,3 +171,6 @@ interpret = PP.toList . unS
 
 interpretM :: Monad m => Signal m a -> m [a]
 interpretM (Signal p) = PP.toListM p
+
+take :: Monad m => Int -> Signal m a -> Signal m a
+take times (Signal p) = Signal $ p >-> PP.take times

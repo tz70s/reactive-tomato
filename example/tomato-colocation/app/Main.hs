@@ -25,7 +25,6 @@ import qualified Pipes.Concurrent              as PC
 import           Tomato.Colocation
 import qualified Data.Aeson                    as JSON
 import qualified Data.ByteString.Lazy          as BSL
-import           Reactive.Tomato
 import           Control.Concurrent             ( forkIO )
 
 type Client = (Unique, WS.Connection)
