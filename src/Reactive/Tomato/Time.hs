@@ -33,6 +33,22 @@ every intvl = do
     emit () evar
     go evar
 
+-- | Start a timer into signal which produce void value.
+-- 
+-- A common pattern is to use this for throttling or triggering something.
+-- 
+-- i.e.
+-- @
+-- main = do
+--   timer0 <- every 1000
+--   -- You get a constant 5 but in every 1000 milliseconds.
+--   let sig0 = const 5 <$> start timer0 
+-- @
+-- 
+-- For throttling, you can simply use the @throttle@, which is implemented in:
+-- @
+-- throttle timer = liftA2 (flip const) (start timer)
+-- @
 start :: MonadIO m => Timer m -> Signal m ()
 start (T (sig, _)) = sig
 
@@ -53,18 +69,23 @@ throttle timer = liftA2 (flip const) (start timer)
 -- let snap = snapshot tick counter
 -- @
 --
--- FIXME - current implementation is extremely unuseful,
--- due to lots of performance waste on evaluate source signal.
 snapshot :: (MonadFork m, MonadIO m) => Timer m -> Signal m a -> Signal m a
-snapshot (T (tick, _)) (Signal p) = do
-  -- We'll take one value first then start ticking.
+snapshot timer (Signal p) = Signal $ do
   res <- lift $ next p
   case res of
-    Left  _      -> empty
+    Left  _      -> pure ()
     Right (x, _) -> do
       (output, input) <- liftIO $ PC.spawn $ PC.latest x
       void . lift . fork $ runEffect $ p >-> PC.toOutput output
-      liftA2 const (Signal (PC.fromInput input)) tick
+      unS $ liftA2 const (Signal (PC.fromInput input)) (start timer)
 
-window :: MonadIO m => Timer m -> Signal m a -> Signal m (Signal m a)
-window tick sig = undefined
+-- | Window the value of specific time window (interval).
+--
+-- FIXME - the implementation is not correct.
+window :: (MonadFork m, MonadIO m) => Timer m -> Signal m a -> Signal m (Signal m a)
+window timer (Signal p) = const subroutine <$> start timer
+  where
+    subroutine = Signal $ do
+      (output, input) <- liftIO $ PC.spawn $ PC.unbounded
+      _ <- lift . fork $ runEffect $ p >-> PC.toOutput output
+      PC.fromInput input
