@@ -67,6 +67,7 @@ import           Control.Concurrent
 import           Control.Monad.Reader
 import           System.IO
 import           Reactive.Tomato.Signal
+import           Reactive.Tomato.Async
 import           Codec.Serialise
 import           Pipes
 import           Data.String
@@ -93,10 +94,24 @@ newtype ClusterMethod = PubSubM Redis.Connection
 newtype Cluster m a = CT (ReaderT ClusterMethod m a)
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadReader ClusterMethod)
 
+instance MonadFork m => MonadFork (ReaderT r m) where
+  fork (ReaderT r) = ReaderT (fork . r)
+
+instance MonadFork m => MonadFork (Cluster m) where
+  fork (CT r) = CT (fork r)
+
+-- | Build monadic computation from configuration, a.k.a ClusterInfo.
+--
+-- @
+-- main = runCluster (PubSub "127.0.0.1" 6379) $ do
+--   -- computations
+-- @
 runCluster :: (MonadIO m) => ClusterInfo -> Cluster m a -> m a
 runCluster (PubSub _host _port) (CT r) = do
   pool <- liftIO $ Redis.checkedConnect Redis.defaultConnectInfo
     { Redis.connectHost = _host
+      -- FIXME - we'll fix this deprecation warning when stackage bumps to new hedis version,
+      -- then update the stack.yaml resolver.
     , Redis.connectPort = Redis.PortNumber . fromInteger $ _port
     }
   runReaderT r (PubSubM pool)
@@ -117,6 +132,7 @@ remote sid = do
   PubSubM conn <- ask
   return $ _subscribe conn sid
 
+-- | Spawn a remote signal.
 spawn :: (MonadIO m, Serialise a) => Sid a -> Signal m a -> Cluster m ()
 spawn sid (Signal p) = do
   PubSubM conn <- ask
