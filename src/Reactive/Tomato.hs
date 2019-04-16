@@ -10,6 +10,7 @@ module Reactive.Tomato
   , interpret
   , interpretM
   , take
+  , last
 
     -- * EVar abstractions.
   , EVar
@@ -34,7 +35,10 @@ module Reactive.Tomato
   )
 where
 
-import           Prelude                hiding (filter, take)
+import           Prelude                 hiding ( filter
+                                                , take
+                                                , last
+                                                )
 import           Reactive.Tomato.Signal
 import           Reactive.Tomato.EVar
 import           Reactive.Tomato.Time

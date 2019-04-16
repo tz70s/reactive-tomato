@@ -1,5 +1,11 @@
 # Haskell
 .stack-work/
+*.prof
+*.hp
+*.aux
+*.ps
+*.svg
+*.pdf
 
 # Others
 .DS_Store

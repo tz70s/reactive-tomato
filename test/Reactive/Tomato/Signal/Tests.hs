@@ -11,7 +11,7 @@ import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 import           Control.Monad.Identity
 import           Reactive.Tomato
-import           Prelude               hiding (filter)
+import           Prelude                 hiding ( filter )
 
 tests :: TestTree
 tests = testGroup
@@ -20,8 +20,8 @@ tests = testGroup
   , testCase "Functor instance"     testFunctor
   , testCase "Applicative instance" testApplicative
   , testCase "Correct foldp semantic for implementing counter" testFolding
-  , testProperty "Functor identity law"     prop_functor_identity
-  , testProperty "Functor composition law"  prop_functor_composition
+  , testProperty "Functor identity law"    prop_functor_identity
+  , testProperty "Functor composition law" prop_functor_composition
   , testProperty "Correct filter semantic" prop_filter
   ]
 

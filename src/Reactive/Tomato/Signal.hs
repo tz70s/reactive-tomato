@@ -12,10 +12,14 @@ module Reactive.Tomato.Signal
   , interpret
   , interpretM
   , take
+  , last
   )
 where
 
-import           Prelude                       hiding (filter, take)
+import           Prelude                 hiding ( filter
+                                                , take
+                                                , last
+                                                )
 import           Pipes
 import qualified Pipes.Prelude                 as PP
 import           Control.Monad                  ( forever )
@@ -143,12 +147,12 @@ filter f (Signal p) = Signal $ p >-> PP.filter f
 -- @
 filterJust :: Monad m => Signal m (Maybe a) -> Signal m a
 filterJust (Signal p) = Signal $ p >-> extract
-  where
-    extract = do
-      v <- await
-      case v of
-        Just x -> yield x >> extract
-        Nothing -> extract
+ where
+  extract = do
+    v <- await
+    case v of
+      Just x  -> yield x >> extract
+      Nothing -> extract
 
 -- | Past dependent folding.
 --
@@ -166,11 +170,43 @@ foldp f s0 (Signal from) = Signal $ from >-> go s0
     go newState
 
 -- | Interpret pure signal into list, useful to inspecting signal transformation.
+--
+-- Note that this is intentionally used in testing.
 interpret :: Signal Identity a -> [a]
 interpret = PP.toList . unS
 
+-- | Interpret signal into list within monad context, useful to inspecting signal transformation.
+--
+-- Note that this is intentionally used in testing.
 interpretM :: Monad m => Signal m a -> m [a]
 interpretM (Signal p) = PP.toListM p
 
+-- | Take bounded elements from signal, then terminate it.
 take :: Monad m => Int -> Signal m a -> Signal m a
 take times (Signal p) = Signal $ p >-> PP.take times
+
+-- | Take the last element of signal.
+-- Useful when you need to reduce elements from window.
+--
+-- @
+-- main = do
+--   timer0 <- every 100
+--   timerWindow <- every 1000
+--   let sig0 = throttle timer0 $ foldp (+) 0 $ constant 1
+--   let latestW = last <$> window timerWindow sig0
+--   xs <- interpretM latestW
+--   print xs
+--   -- xs should be something like [1, 10, 20, 30, ..]
+-- @
+last :: (Alternative m, Monad m) => Signal m a -> m a
+last (Signal p) = do
+  res <- next p
+  case res of
+    Left  _           -> empty
+    Right (val', ps') -> go ps' val'
+ where
+  go ps val = do
+    res <- next ps
+    case res of
+      Left  _           -> return val
+      Right (val', ps') -> go ps' val'

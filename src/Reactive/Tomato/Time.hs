@@ -83,9 +83,9 @@ snapshot timer (Signal p) = Signal $ do
 --
 -- FIXME - the implementation is not correct.
 window :: (MonadFork m, MonadIO m) => Timer m -> Signal m a -> Signal m (Signal m a)
-window timer (Signal p) = const subroutine <$> start timer
-  where
-    subroutine = Signal $ do
-      (output, input) <- liftIO $ PC.spawn $ PC.unbounded
-      _ <- lift . fork $ runEffect $ p >-> PC.toOutput output
-      PC.fromInput input
+window timer (Signal p) = subroutine <$ start timer
+ where
+  subroutine = Signal $ do
+    (output, input) <- liftIO $ PC.spawn PC.unbounded
+    _               <- lift . fork $ runEffect $ p >-> PC.toOutput output
+    PC.fromInput input

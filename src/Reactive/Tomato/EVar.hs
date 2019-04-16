@@ -43,6 +43,9 @@ import           Control.Concurrent.STM
 newtype EVar a = EVar (PC.Output a, PC.Input a, STM ())
 
 -- | Create a new EVar.
+-- 
+-- Note that the lifecycle of EVar should be greater than deriving Signal.
+-- Once the EVar gets garbage collected, the deriving signal will be terminated as well.
 newEVar :: IO (EVar a)
 newEVar = do
   (output, input, seal) <- PC.spawn' PC.unbounded
