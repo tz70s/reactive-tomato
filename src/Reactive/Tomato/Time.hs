@@ -1,5 +1,9 @@
 module Reactive.Tomato.Time
   ( Timer
+  , Time
+  , second
+  , milli
+  , micro
   , every
   , start
   , throttle
@@ -21,15 +25,37 @@ import           Reactive.Tomato.Async
 -- | Necessary to keep EVar because of garbage collection.
 newtype Timer m = T (Signal m (), EVar ())
 
--- | Spawn a signal that tick every /a/ milliseconds.
-every :: MonadIO m => Int -> IO (Timer m)
+-- | Wrapper for simplify calling with every.
+data Time
+  = Second Int
+  | Milli Int
+  | Micro Int
+
+-- | Wrap int into `Time` representation, in second.
+second :: Int -> Time
+second = Second
+
+-- | Wrap int into `Time` representation, in milliseconds.
+milli :: Int -> Time
+milli = Milli
+
+-- | Wrap int into `Time` representation, in microseconds.
+micro :: Int -> Time
+micro = Micro
+
+-- | Spawn a signal that tick every specific time interval.
+every :: MonadIO m => Time -> IO (Timer m)
 every intvl = do
   evar <- newEVar
   _    <- forkIO $ go evar
   return $ T (events evar, evar)
  where
+  toMicro (Second t) = t * 1000000
+  toMicro (Milli  t) = t * 1000
+  toMicro (Micro  t) = t
+
   go evar = do
-    threadDelay $ intvl * 1000
+    threadDelay $ toMicro intvl
     emit () evar
     go evar
 
@@ -40,9 +66,9 @@ every intvl = do
 -- i.e.
 -- @
 -- main = do
---   timer0 <- every 1000
---   -- You get a constant 5 but in every 1000 milliseconds.
---   let sig0 = const 5 <$> start timer0 
+--   timer0 <- every $ second 1
+--   -- You get a constant 5 but in every 1 second.
+--   let sig0 = 5 <$ start timer0 
 -- @
 -- 
 -- For throttling, you can simply use the @throttle@, which is implemented in:
@@ -55,7 +81,7 @@ start (T (sig, _)) = sig
 -- | Throttle signal propagation speed in milliseconds.
 --
 -- @
--- let sig = throttle 1000 $ constant 1
+-- let sig = throttle (second 1) $ constant 1
 -- @
 throttle :: MonadIO m => Timer m -> Signal m a -> Signal m a
 throttle timer = liftA2 (flip const) (start timer)
@@ -65,10 +91,9 @@ throttle timer = liftA2 (flip const) (start timer)
 -- @
 -- let counter = foldp (+) 0 $ constant 1
 -- -- tick every one second
--- let tick = every 1000
+-- let tick = every $ second 1
 -- let snap = snapshot tick counter
 -- @
---
 snapshot :: (MonadFork m, MonadIO m) => Timer m -> Signal m a -> Signal m a
 snapshot timer (Signal p) = Signal $ do
   res <- lift $ next p

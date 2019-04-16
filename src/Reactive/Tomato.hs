@@ -21,6 +21,10 @@ module Reactive.Tomato
 
     -- * Time function.
   , Timer
+  , Time
+  , second
+  , micro
+  , milli
   , every
   , start
   , throttle

@@ -10,8 +10,7 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 import           Control.Monad.Identity
-import           Reactive.Tomato
-import           Prelude                 hiding ( filter )
+import           Reactive.Tomato               as RT
 
 tests :: TestTree
 tests = testGroup
@@ -65,6 +64,6 @@ prop_functor_composition times sig (Fun _ f) (Fun _ g) =
   _sample (fmap (f . g) sig) times == _sample (fmap f . fmap g $ sig) times
 
 prop_filter :: Int -> Bool
-prop_filter times = _sample (filter (\s -> s `mod` 2 == 0) cnt) times
+prop_filter times = _sample (RT.filter (\s -> s `mod` 2 == 0) cnt) times
   == Prelude.take times ([2, 4 ..] :: [Int])
   where cnt = foldp (\_ s -> s + 1) 0 $ constant ()
