@@ -84,6 +84,9 @@ instance MonadError e m => MonadError e (Signal m) where
   throwError = lift . throwError
   catchError (Signal p0) f = Signal $ catchError p0 $ fmap unS f
 
+instance Monad m => MonadFix (Signal m) where
+  mfix h = undefined
+
 _pure :: Monad m => a -> Signal m a
 _pure = Signal . forever . yield
 

@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main
@@ -8,123 +11,115 @@ module Main
   )
 where
 
-import qualified Data.Text                     as Text
-import qualified Data.Text.IO                  as Text
-import qualified Network.WebSockets            as WS
+import           Control.Exception
 import           Control.Monad                  ( forM_
                                                 , forever
                                                 )
-import           Control.Concurrent.STM.TVar
-import           Control.Concurrent.STM
-import           Control.Exception              ( try )
-import           Control.Monad.State
-import           Data.Unique
+import           Control.Monad.Reader
 import           Control.Monad.Except
-import           Pipes
-import qualified Pipes.Concurrent              as PC
-import           Tomato.Colocation
-import qualified Data.Aeson                    as JSON
-import qualified Data.ByteString.Lazy          as BSL
 import           Control.Concurrent             ( forkIO )
+import           Control.Concurrent.STM
 
-type Client = (Unique, WS.Connection)
+import           Data.Unique
+import qualified Data.ByteString.Lazy          as BSL
+import qualified Data.Text                     as Text
+import qualified Data.Text.IO                  as Text
+import qualified Data.Aeson                    as JSON
 
-data Clients = Clients [Client] CurrentView
+import qualified Network.WebSockets            as WS
+import           Tomato.Colocation
 
-type WSState = TVar Clients
+data Client = C Unique WS.Connection
 
-newtype WSStateT m a = WSStateT
-  { unWSStateT :: StateT WSState m a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadState WSState)
+instance Eq Client where
+  C u1 _ == C u2 _ = u1 == u2
 
-newWSState :: IO WSState
-newWSState = newTVarIO $ Clients [] newView
+instance Show Client where
+  show (C u _) = show $ hashUnique u
 
-newClient :: (MonadIO m) => WS.Connection -> m Client
-newClient conn = do
-  id <- liftIO newUnique
-  return (id, conn)
+data StateA = S [Client] CurrentView
 
-numClients :: Clients -> Int
-numClients (Clients c _) = length c
+type Env = TVar StateA
 
-addClient :: Client -> Clients -> Clients
-addClient client (Clients clients c) = Clients (client : clients) c
+newtype AppT m a = A
+  { unA :: ReaderT Env m a
+  } deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadTrans)
 
-removeClient :: Client -> Clients -> Clients
-removeClient (id, _) (Clients clients view) =
-  Clients (filter ((/= id) . fst) clients) $ deleteView id view
+instance MonadError e m => MonadError e (AppT m) where
+  throwError = lift . throwError
+  catchError (A a) f = A $ catchError a (fmap unA f)
 
-tryE :: (MonadIO m, MonadError WS.ConnectionException m) => IO a -> m a
-tryE action = do
+type AppM = AppT IO
+
+newEnv :: IO Env
+newEnv = newTVarIO $ S [] newView
+
+newClient :: WS.Connection -> IO Client
+newClient conn = C <$> newUnique <*> pure conn
+
+numClients :: StateA -> Int
+numClients (S c _) = length c
+
+addClient :: Client -> StateA -> StateA
+addClient client (S xs view) = S (client : xs) view
+
+removeClient :: Client -> StateA -> StateA
+removeClient c@(C uid _) (S clients view) = S (filter (/= c) clients) $ deleteView uid view
+
+rethrow :: IO a -> ExceptT WS.ConnectionException AppM a
+rethrow action = do
   res <- liftIO $ try action
   case res of
-    Left  e -> throwError (e :: WS.ConnectionException)
-    Right a -> return a
+    Left e -> throwError e
+    Right r -> return r
 
--- | Core logic of manage data pipeline and single connection.
-talk :: (MonadIO m, MonadState WSState m) => Client -> m ()
-talk client = do
-  res <- runExceptT $ runEffect $ processEvt client
+interact' :: Client -> AppM ()
+interact' client = do
+  res <- runExceptT (process client)
   case res of
     Left e -> do
-      liftIO $ putStrLn $ "Close and remove connection, cause : " <> show
-        (e :: WS.ConnectionException)
+      liftIO $ putStrLn $ "Connection close, remove client " <> show client <> "."
       -- Close out and remove client connection if any connection exception occurred.
-      var <- get
-      liftIO $ atomically $ modifyTVar var $ removeClient client
-    Right () -> talk client
+      env <- ask
+      liftIO $ atomically $ modifyTVar env $ removeClient client
+    Right _ -> interact' client
 
-processEvt
-  :: forall m
-   . (MonadIO m, MonadState WSState m, MonadError WS.ConnectionException m)
-  => Client
-  -> Effect m ()
-processEvt (uid, conn) = extract >-> broadcast
+process :: Client -> ExceptT WS.ConnectionException AppM ()
+process (C uid conn) = forever $ do
+  msg <- rethrow $ WS.receiveData conn
+  case JSON.decode msg of
+    Just m -> update m >>= (rethrow . broadcast)
+    Nothing ->
+      liftIO $ putStrLn "Wrong real world event format, currently simply abort this message."
  where
-  extract = do
-    msg <- tryE $ WS.receiveData conn
-    let evt = JSON.decode msg
-    case evt of
-      Just m -> update m >>= yield >> extract
-      Nothing ->
-        liftIO (putStrLn "Wrong real world event format, currently simply abort this message.")
-          >> extract
-
   update realE = do
-    var <- get
+    env <- ask
     liftIO . atomically $ do
-      (Clients clients view) <- readTVar var
-      let updated = Clients clients $ updateView uid realE view
-      writeTVar var updated
+      (S clients view) <- readTVar env
+      let updated = S clients $ updateView uid realE view
+      writeTVar env updated
       return updated
 
-broadcast
-  :: (MonadIO m, MonadState WSState m, MonadError WS.ConnectionException m) => Consumer Clients m ()
-broadcast = do
-  (Clients clients view) <- await
-  tryE $ forM_ clients $ \(uid, conn) -> forM_ (encodeEach uid view) (WS.sendTextData conn)
-  broadcast
+  broadcast (S clients view) =
+    forM_ clients $ \(C uid conn) -> forM_ (encodeEach uid view) (WS.sendTextData conn)
 
 -- | WS.ServerApp is type of PendingConnection -> IO (), 
 -- the model of handling websockets is thread per connection.
 -- When the thread return, connection will be automatically closed.
-application :: (MonadIO m, MonadState WSState m) => WS.PendingConnection -> m ()
-application pending = do
+handler :: WS.PendingConnection -> AppM ()
+handler pending = do
   conn   <- liftIO $ WS.acceptRequest pending
-  var    <- get
-  client <- newClient conn
-  liftIO $ atomically $ modifyTVar var $ addClient client
-  liftIO $ putStrLn $ "New connection arrived with id : " <> (show . hashUnique . fst) client
+  env    <- ask
+  client <- liftIO $ newClient conn
+  liftIO $ atomically $ modifyTVar env $ addClient client
+  liftIO $ putStrLn $ "New connection arrived with id : " <> show client
   -- This is for some browser timeout settings (i.e. 60 seconds) to avoid leaking connection.
   liftIO $ WS.forkPingThread conn 30
-  talk client
+  interact' client
 
 main :: IO ()
 main = do
   putStrLn "Start websocket server at ws://127.0.0.1:9160"
-  state <- newWSState
-  -- TODO: is there any simpler way to integrate transformer stack?
-  let handler p = (runStateT . unWSStateT) (application p) state
-  let serve = (fmap . fmap) fst handler
+  env <- newEnv
+  let serve = fmap (\ma -> runReaderT (unA ma) env) handler
   WS.runServer "127.0.0.1" 9160 serve

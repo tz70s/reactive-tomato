@@ -16,9 +16,6 @@ library
   default-language:    Haskell2010
   exposed-modules:     Tomato.Colocation
   build-depends:       base >= 4.7 && < 5
-                     , pipes
-                     , pipes-concurrency
-                     , mtl
                      , text
                      , bytestring
                      , aeson
@@ -29,8 +26,6 @@ executable colocation-native
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
-                     , pipes
-                     , pipes-concurrency
                      , text
                      , bytestring
                      , aeson
