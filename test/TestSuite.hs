@@ -4,6 +4,7 @@ module Main
 where
 
 import           Test.Tasty
+
 import qualified Reactive.Tomato.Signal.Tests  as Signal
 import qualified Reactive.Tomato.EVar.Tests    as EVar
 import qualified Reactive.Tomato.Time.Tests    as Time

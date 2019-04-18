@@ -8,10 +8,12 @@ module Reactive.Tomato.EVar
   )
 where
 
-import           Reactive.Tomato.Signal
 import           Pipes                   hiding ( await )
-import qualified Pipes.Concurrent              as PC
 import           Control.Concurrent.STM
+
+import           Reactive.Tomato.Signal
+
+import qualified Pipes.Concurrent              as PC
 
 -- | An event var for composition from callbacks.
 -- In Haskell, we're encouraged to use existing green thread system.

@@ -1,10 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main
   ( main
@@ -12,65 +7,26 @@ module Main
 where
 
 import           Control.Exception
-import           Control.Monad                  ( forM_
-                                                , forever
-                                                )
+import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.Except
 import           Control.Concurrent             ( forkIO )
 import           Control.Concurrent.STM
 
-import           Data.Unique
+import           Tomato.Colocation
+import           Tomato.Colocation.Native.Types
+
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
 import qualified Data.Aeson                    as JSON
-
 import qualified Network.WebSockets            as WS
-import           Tomato.Colocation
-
-data Client = C Unique WS.Connection
-
-instance Eq Client where
-  C u1 _ == C u2 _ = u1 == u2
-
-instance Show Client where
-  show (C u _) = show $ hashUnique u
-
-data StateA = S [Client] CurrentView
-
-type Env = TVar StateA
-
-newtype AppT m a = A
-  { unA :: ReaderT Env m a
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadTrans)
-
-instance MonadError e m => MonadError e (AppT m) where
-  throwError = lift . throwError
-  catchError (A a) f = A $ catchError a (fmap unA f)
-
-type AppM = AppT IO
-
-newEnv :: IO Env
-newEnv = newTVarIO $ S [] newView
-
-newClient :: WS.Connection -> IO Client
-newClient conn = C <$> newUnique <*> pure conn
-
-numClients :: StateA -> Int
-numClients (S c _) = length c
-
-addClient :: Client -> StateA -> StateA
-addClient client (S xs view) = S (client : xs) view
-
-removeClient :: Client -> StateA -> StateA
-removeClient c@(C uid _) (S clients view) = S (filter (/= c) clients) $ deleteView uid view
 
 rethrow :: IO a -> ExceptT WS.ConnectionException AppM a
 rethrow action = do
   res <- liftIO $ try action
   case res of
-    Left e -> throwError e
+    Left  e -> throwError e
     Right r -> return r
 
 interact' :: Client -> AppM ()
@@ -121,5 +77,5 @@ main :: IO ()
 main = do
   putStrLn "Start websocket server at ws://127.0.0.1:9160"
   env <- newEnv
-  let serve = fmap (\ma -> runReaderT (unA ma) env) handler
+  let serve = fmap (`runApp` env) handler
   WS.runServer "127.0.0.1" 9160 serve

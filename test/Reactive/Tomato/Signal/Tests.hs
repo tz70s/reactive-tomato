@@ -6,10 +6,11 @@ module Reactive.Tomato.Signal.Tests
   )
 where
 
+import           Control.Monad.Identity
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
-import           Control.Monad.Identity
+
 import           Reactive.Tomato               as RT
 
 tests :: TestTree

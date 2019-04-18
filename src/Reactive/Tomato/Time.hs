@@ -17,10 +17,12 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Concurrent      hiding ( yield )
 import           Pipes                   hiding ( every )
-import qualified Pipes.Concurrent              as PC
+
 import           Reactive.Tomato.Signal
 import           Reactive.Tomato.EVar
 import           Reactive.Tomato.Async
+
+import qualified Pipes.Concurrent              as PC
 
 -- | Necessary to keep EVar because of garbage collection.
 newtype Timer m = T (Signal m (), EVar ())

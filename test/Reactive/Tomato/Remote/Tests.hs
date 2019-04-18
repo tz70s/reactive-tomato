@@ -7,6 +7,7 @@ where
 
 import           Test.Tasty
 import           Test.Tasty.HUnit
+
 import           Reactive.Tomato               as RT
 
 tests :: TestTree

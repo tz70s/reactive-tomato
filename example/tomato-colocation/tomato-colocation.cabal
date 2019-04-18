@@ -24,6 +24,7 @@ library
 executable colocation-native
   hs-source-dirs:      native
   main-is:             Main.hs
+  other-modules:       Tomato.Colocation.Native.Types
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , text
@@ -37,6 +38,7 @@ executable colocation-native
 executable colocation-reactive
   hs-source-dirs:      reactive
   main-is:             Main.hs
+  other-modules:       Tomato.Colocation.Reactive.Types
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
                      , text
@@ -46,6 +48,7 @@ executable colocation-reactive
                      , websockets
                      , reactive-tomato
                      , tomato-colocation
+                     , mtl
 
 test-suite tomato-colocation-tests
   type:                exitcode-stdio-1.0

@@ -43,6 +43,7 @@ import           Prelude                 hiding ( filter
                                                 , take
                                                 , last
                                                 )
+
 import           Reactive.Tomato.Signal
 import           Reactive.Tomato.EVar
 import           Reactive.Tomato.Time

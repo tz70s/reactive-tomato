@@ -21,12 +21,13 @@ import           Prelude                 hiding ( filter
                                                 , last
                                                 )
 import           Pipes
-import qualified Pipes.Prelude                 as PP
 import           Control.Monad                  ( forever )
 import           Control.Monad.State.Class
 import           Control.Monad.Error.Class
 import           Control.Monad.Identity
 import           Control.Applicative
+
+import qualified Pipes.Prelude                 as PP
 
 -- | Signal abstraction - the representation is isomorphic to latest value in a stream.
 newtype Signal m a = Signal { unS :: Producer a m () }
@@ -83,9 +84,6 @@ instance MonadState s m => MonadState s (Signal m) where
 instance MonadError e m => MonadError e (Signal m) where
   throwError = lift . throwError
   catchError (Signal p0) f = Signal $ catchError p0 $ fmap unS f
-
-instance Monad m => MonadFix (Signal m) where
-  mfix h = undefined
 
 _pure :: Monad m => a -> Signal m a
 _pure = Signal . forever . yield

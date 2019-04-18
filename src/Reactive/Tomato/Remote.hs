@@ -63,13 +63,15 @@ module Reactive.Tomato.Remote
 where
 
 import           Control.Monad                  ( void )
-import           Control.Concurrent
 import           Control.Monad.Reader
+import           Control.Concurrent
+import           Codec.Serialise
+import           Pipes
+
 import           Reactive.Tomato.Signal
 import           Reactive.Tomato.Async
 import           Reactive.Tomato.EVar
-import           Codec.Serialise
-import           Pipes
+
 import qualified Data.ByteString               as BS
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Database.Redis                as Redis

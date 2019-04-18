@@ -15,11 +15,12 @@ module Tomato.Colocation
   )
 where
 
+import           Data.Unique
 import           Data.Aeson
 import           GHC.Generics                   ( Generic )
+
 import qualified Data.Text                     as Text
 import qualified Data.Map                      as Map
-import           Data.Unique
 import qualified Data.ByteString.Lazy          as BSL
 
 type Colocation = (Double, Double)

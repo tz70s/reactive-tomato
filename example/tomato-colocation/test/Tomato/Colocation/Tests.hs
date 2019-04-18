@@ -6,11 +6,14 @@ module Tomato.Colocation.Tests
   )
 where
 
-import           Tomato.Colocation
+
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
-import           Data.Text                     as Text
+
+import           Tomato.Colocation
+
+import qualified Data.Text                     as Text
 
 tests :: TestTree
 tests = testGroup "Tomato Colocation Tests" [testCase "Collision detection function" testCollision]

@@ -3,10 +3,12 @@ module Reactive.Tomato.EVar.Tests
   )
 where
 
+import           Control.Concurrent
 import           Test.Tasty
 import           Test.Tasty.HUnit
+
 import           Reactive.Tomato
-import           Control.Concurrent
+
 
 tests :: TestTree
 tests =

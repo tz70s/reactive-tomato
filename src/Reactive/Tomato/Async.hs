@@ -7,12 +7,14 @@ module Reactive.Tomato.Async
 where
 
 import           Pipes
-import qualified Pipes.Concurrent              as PC
 import           Control.Concurrent      hiding ( yield )
-import           Reactive.Tomato.Signal
-import           Control.Monad                  ( void )
 import           Control.Concurrent.STM
+import           Control.Monad                  ( void )
 import           Control.Monad.Reader
+
+import           Reactive.Tomato.Signal
+
+import qualified Pipes.Concurrent              as PC
 
 -- Type class for forking thread in a general context.
 class (Monad m) => MonadFork m where
