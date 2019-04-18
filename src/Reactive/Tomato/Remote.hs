@@ -137,11 +137,12 @@ defaultLocalPubSub = PubSub localhost defaultPortNum
 -- @
 -- {-# LANGUAGE OverloadedStrings #-}
 -- 
--- main = do
---   sig1 <- remote "sig1"
+-- main = runCluster defaultLocalPubSub $ do
+--   sig1 <- remote =<< sid "sig1"
 --   -- use signal can infer the Sid type.
 --   -- e.g. we can infer the (Num a) here.
 --   sig2 = fmap (+1) sig1
+--   react sig2 print
 -- @
 remote :: (MonadIO m, MonadIO m0, Serialise a) => Sid a -> Cluster m (Signal m0 a)
 remote (Sid sid' evar') = do
@@ -155,6 +156,20 @@ remote (Sid sid' evar') = do
   return $ events evar'
 
 -- | Spawn a remote signal.
+-- 
+-- Note that this is a blocking method, current thread will be blocked until signal terminate.
+-- If you need to make this asynchronous,
+-- the Cluster monad support 'MonadFork' for forking (same as your monad should support it).
+--
+-- @
+-- main = runCluster defaultLocalPubSub $ do
+--   timer0 <- every $ milli 10
+--   let sig0 = throttle timer0 $ foldp (+) 0 $ constant 1
+--   -- Spawn a distributed accumulator
+--   sidcnt <- sid "cnt"
+--   -- Note that this will block the thread.
+--   spawn cnt sig0
+-- @
 spawn :: (MonadIO m, Serialise a) => Sid a -> Signal m a -> Cluster m ()
 spawn sid' (Signal p) = do
   PubSubM conn <- ask
