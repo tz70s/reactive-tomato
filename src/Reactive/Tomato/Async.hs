@@ -12,6 +12,7 @@ import           Control.Concurrent      hiding ( yield )
 import           Reactive.Tomato.Signal
 import           Control.Monad                  ( void )
 import           Control.Concurrent.STM
+import           Control.Monad.Reader
 
 -- Type class for forking thread in a general context.
 class (Monad m) => MonadFork m where
@@ -19,6 +20,9 @@ class (Monad m) => MonadFork m where
 
 instance MonadFork IO where
   fork = forkIO
+
+instance MonadFork m => MonadFork (ReaderT r m) where
+  fork (ReaderT r) = ReaderT (fork . r)
 
 -- | Make the wrapping signal into seperate thread.
 --

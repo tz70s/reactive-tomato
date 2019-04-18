@@ -52,34 +52,46 @@
 
 module Reactive.Tomato.Remote
   ( Sid
+  , sid
   , ClusterInfo(..)
   , Cluster
   , runCluster
+  , defaultLocalPubSub
   , remote
   , spawn
   )
 where
 
-import           Control.Monad                  ( void
-                                                , forever
-                                                )
+import           Control.Monad                  ( void )
 import           Control.Concurrent
 import           Control.Monad.Reader
-import           System.IO
 import           Reactive.Tomato.Signal
 import           Reactive.Tomato.Async
+import           Reactive.Tomato.EVar
 import           Codec.Serialise
 import           Pipes
-import           Data.String
 import qualified Data.ByteString               as BS
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Database.Redis                as Redis
 
 -- | Reference identifier for signal, the type variable is useful for type inference.
-newtype Sid a = Sid { unSid :: BS.ByteString } deriving (Show)
+data Sid a = Sid
+  { ids :: BS.ByteString
+  , evar :: EVar a
+  }
 
-instance IsString (Sid a) where
-  fromString = Sid . fromString
+-- | Construct a sid, in cluster monad.
+-- 
+-- @
+-- -- Remember OverloadedStrings extension.
+--
+-- cluster = do
+--   sid0 <- sid "sid0"
+-- @
+sid :: MonadIO m => BS.ByteString -> Cluster m (Sid a)
+sid ids' = do
+  evar' <- liftIO newEVar
+  return Sid { ids = ids', evar = evar' }
 
 type Host = String
 type PortNum = Integer
@@ -93,9 +105,6 @@ newtype ClusterMethod = PubSubM Redis.Connection
 
 newtype Cluster m a = CT (ReaderT ClusterMethod m a)
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadReader ClusterMethod)
-
-instance MonadFork m => MonadFork (ReaderT r m) where
-  fork (ReaderT r) = ReaderT (fork . r)
 
 instance MonadFork m => MonadFork (Cluster m) where
   fork (CT r) = CT (fork r)
@@ -116,6 +125,13 @@ runCluster (PubSub _host _port) (CT r) = do
     }
   runReaderT r (PubSubM pool)
 
+-- | Helpers for local settings
+defaultLocalPubSub :: ClusterInfo
+defaultLocalPubSub = PubSub localhost defaultPortNum
+ where
+  localhost      = "127.0.0.1"
+  defaultPortNum = 6379
+
 -- | Create a new remote signal.
 --
 -- @
@@ -128,34 +144,26 @@ runCluster (PubSub _host _port) (CT r) = do
 --   sig2 = fmap (+1) sig1
 -- @
 remote :: (MonadIO m, MonadIO m0, Serialise a) => Sid a -> Cluster m (Signal m0 a)
-remote sid = do
+remote (Sid sid' evar') = do
   PubSubM conn <- ask
-  return $ _subscribe conn sid
-
--- | Spawn a remote signal.
-spawn :: (MonadIO m, Serialise a) => Sid a -> Signal m a -> Cluster m ()
-spawn sid (Signal p) = do
-  PubSubM conn <- ask
-  lift $ runEffect $ p >-> _publish conn sid
-
-_publish :: (MonadIO m, Serialise a) => Redis.Connection -> Sid a -> Consumer a m ()
-_publish conn sid = do
-  val <- await
-  let serde = BSL.toStrict . serialise $ val
-  liftIO $ Redis.runRedis conn $ go sid serde
-  where go (Sid chnl) msg = void $ Redis.publish chnl msg
-
-_subscribe :: (MonadIO m, Serialise a) => Redis.Connection -> Sid a -> Signal m a
-_subscribe conn (Sid sid) = do
-  liftIO $ hSetBuffering stdout LineBuffering
-  chan <- liftIO newChan
-  _    <- liftIO . forkIO $ Redis.runRedis conn $ Redis.pubSub (Redis.subscribe [sid]) $ \msg -> do
-    print msg
+  _ <- liftIO . forkIO $ Redis.runRedis conn $ Redis.pubSub (Redis.subscribe [sid']) $ \msg -> do
     let deserde = deserialiseOrFail . BSL.fromStrict . Redis.msgMessage $ msg
     case deserde of
       Left  ex    -> putStrLn $ "Deserialization failure, cause: " <> show ex
-      Right value -> writeChan chan value
-    return $ Redis.unsubscribe [sid]
-  Signal $ forever $ do
-    v <- liftIO $ readChan chan
-    Pipes.yield v
+      Right value -> emit value evar'
+    return mempty
+  return $ events evar'
+
+-- | Spawn a remote signal.
+spawn :: (MonadIO m, Serialise a) => Sid a -> Signal m a -> Cluster m ()
+spawn sid' (Signal p) = do
+  PubSubM conn <- ask
+  lift $ runEffect $ p >-> _publish conn sid'
+
+_publish :: (MonadIO m, Serialise a) => Redis.Connection -> Sid a -> Consumer a m ()
+_publish conn sid' = do
+  val <- await
+  let serde = BSL.toStrict . serialise $ val
+  liftIO $ Redis.runRedis conn $ go sid' serde
+  _publish conn sid'
+  where go (Sid chnl _) msg = void $ Redis.publish chnl msg

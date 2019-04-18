@@ -20,7 +20,7 @@ tests = testGroup
 
 testThrottle :: Assertion
 testThrottle = do
-  timer <- every $ second 1
+  timer <- every $ milli 10
   let sig0 = throttle timer $ listGen ([1, 2, 3, 4, 5] :: [Int])
   let sig1 = sig0 >>= printx
   xs <- interpretM sig1
@@ -33,8 +33,8 @@ testThrottle = do
 testSnapshot :: Assertion
 testSnapshot = do
   hSetBuffering stdout LineBuffering
-  timer0 <- every $ milli 80
-  timer1 <- every $ second 1
+  timer0 <- every $ milli 10
+  timer1 <- every $ milli 100
   let sig0    = throttle timer0 $ listGen ([1 .. 10] :: [Int])
   let snap    = snapshot timer1 sig0
   let testsig = liftA2 const snap $ listGen ([1, 2, 3] :: [Int])
@@ -46,8 +46,8 @@ testSnapshot = do
 testWindow :: Assertion
 testWindow = do
   hSetBuffering stdout LineBuffering
-  timer0 <- every $ milli 100
-  timer1 <- every $ second 1
+  timer0 <- every $ milli 10
+  timer1 <- every $ milli 100
   let sig0    = throttle timer0 $ listGen ([1 .. 10] :: [Int])
   -- sig1 :: Signal IO (IO Int)
   let sig1    = RT.last <$> window timer1 sig0
