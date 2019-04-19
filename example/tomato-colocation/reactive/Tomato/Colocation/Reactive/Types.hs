@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Tomato.Colocation.Reactive.Types
   ( Client(..)
@@ -14,6 +15,7 @@ module Tomato.Colocation.Reactive.Types
 where
 
 import           Data.Unique
+import           Control.Exception
 
 import           Reactive.Tomato               as RT
 
@@ -32,7 +34,7 @@ data ControlE = Add Client | Remove Client
 
 data DataE = DE Client BSL.ByteString
 
-data Command = BCast BSL.ByteString | Close
+data Command = BCast BSL.ByteString | forall e . Exception e => Close e
 
 data Context = Context
   { cvar :: !(EVar ControlE)

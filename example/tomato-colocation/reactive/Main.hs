@@ -45,21 +45,31 @@ serialize sigc sigview = filterJust $ sigview >>= encode
     return $ encodeEach uid curr
 
 currView :: SIO IdEvent -> SIO CurrentView
-currView = foldp iterate newView where iterate (C uid _, realE) = updateView uid realE
+currView = foldp go newView where go (C uid _, realE) = updateView uid realE
 
 interact' :: Context -> Client -> IO ()
 interact' ctx@Context {..} client@(C uid conn) = do
   evar     <- newEVar
   commands <- eventsB (clientRef client) evar broker
-  _        <- forkSource
-  react commands reaction
+  catch (repl commands)
+    $ \(e :: WS.ConnectionException) -> putStrLn "Close connection due to client side closed it."
 
  where
-  forkSource = forkIO . forever $ do
-    msg <- WS.receiveData conn
-    emit (DE client msg) dvar
+  repl commands = do
+    _ <- forkSource
+    react commands reaction
 
-  reaction commands = putStrLn "Perform command"
+  -- The exception thrown by this thread need to be handled in main thread in interact'
+  -- Hence, we catch close as command and rethrow in the main thread.
+  forkSource = forkIO $ catch go $ \e ->
+    void $ emitB (clientRef client) (Close (e :: SomeException)) broker
+   where
+    go = forever $ do
+      msg <- WS.receiveData conn
+      emit (DE client msg) dvar
+
+  reaction (BCast bs) = putStrLn "Broadcasting data"
+  reaction (Close e ) = throwIO e
 
 handler :: Context -> WS.PendingConnection -> IO ()
 handler ctx@Context {..} pending = do
