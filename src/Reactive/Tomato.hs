@@ -40,6 +40,9 @@ module Reactive.Tomato
   , snapshot
   , window
 
+    -- * Experimental Signal Function (SF) extension.
+  , module Reactive.Tomato.SF
+
     -- * Asynchronous utitilies.
   , module Reactive.Tomato.Async
 
@@ -54,6 +57,7 @@ import           Prelude                 hiding ( filter
                                                 )
 
 import           Reactive.Tomato.Signal
+import           Reactive.Tomato.SF
 import           Reactive.Tomato.EVar
 import           Reactive.Tomato.Time
 import           Reactive.Tomato.Async

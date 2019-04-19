@@ -13,12 +13,14 @@ import           Control.Exception
 import           Control.Concurrent
 
 import           Reactive.Tomato               as RT
+import           Tomato.Colocation
 import           Tomato.Colocation.Reactive.Types
 
 import qualified Network.WebSockets            as WS
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
+import qualified Data.Aeson                    as JSON
 
 clients :: Context -> SIO [Client]
 clients Context {..} = foldp go [] (events cvar)
@@ -26,15 +28,38 @@ clients Context {..} = foldp go [] (events cvar)
   go (Add    c) xs = c : xs
   go (Remove c) xs = Prelude.filter (/= c) xs
 
+type IdEvent = (Client, RealWorldEvent)
+
+deserialize :: SIO DataE -> SIO IdEvent
+deserialize sigdata = filterJust $ do
+  (DE client bs) <- sigdata
+  case JSON.decode bs of
+    Just realE -> return $ Just (client, realE)
+    Nothing    -> return Nothing
+
+serialize :: SIO Client -> SIO CurrentView -> SIO BSL.ByteString
+serialize sigc sigview = filterJust $ sigview >>= encode
+ where
+  encode curr = do
+    (C uid _) <- sigc
+    return $ encodeEach uid curr
+
+currView :: SIO IdEvent -> SIO CurrentView
+currView = foldp iterate newView where iterate (C uid _, realE) = updateView uid realE
+
 interact' :: Context -> Client -> IO ()
 interact' ctx@Context {..} client@(C uid conn) = do
   evar     <- newEVar
   commands <- eventsB (clientRef client) evar broker
-  _        <- forkIO . forever $ do
+  _        <- forkSource
+  react commands reaction
+
+ where
+  forkSource = forkIO . forever $ do
     msg <- WS.receiveData conn
     emit (DE client msg) dvar
-  react commands reaction
-  where reaction cmd = putStrLn "Perform command"
+
+  reaction commands = putStrLn "Perform command"
 
 handler :: Context -> WS.PendingConnection -> IO ()
 handler ctx@Context {..} pending = do
