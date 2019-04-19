@@ -29,7 +29,16 @@ import           Control.Applicative
 
 import qualified Pipes.Prelude                 as PP
 
--- | Signal abstraction - the representation is isomorphic to latest value in a stream.
+-- | Signal abstraction - the representation is isomorphic to ListT.
+--
+-- However, Signal can be combined with various way (i.e. functor, applicative and monad).
+-- 
+-- Note on Applicative instance: merging signals is synchronous,
+-- for asynchronous merging, please refer to 'merge' or 'mergeAll' variants.
+--
+-- Note on Monad instance: the behavior is treated like transforming a ListT.
+--
+-- Please refer to unit/property tests for behavior of signal.
 newtype Signal m a = Signal { unS :: Producer a m () }
 
 -- | Create a constant signal which is isomorphic to a infinite list of constant value.
