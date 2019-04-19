@@ -18,6 +18,15 @@ module Reactive.Tomato
   , emit
   , events
   , react
+  , cancel
+  , Bref
+  , bref
+  , BVar
+  , newBVar
+  , emitB
+  , register
+  , fromList
+  , eventsB
 
     -- * Time function.
   , Timer

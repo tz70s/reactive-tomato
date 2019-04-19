@@ -5,14 +5,25 @@ module Reactive.Tomato.EVar
   , events
   , react
   , cancel
+  , Bref
+  , bref
+  , BVar
+  , newBVar
+  , eventsB
+  , emitB
+  , register
+  , fromList
+  , derefBVar
   )
 where
 
 import           Pipes                   hiding ( await )
 import           Control.Concurrent.STM
+import           Data.String
 
 import           Reactive.Tomato.Signal
 
+import qualified Data.Map                      as Map
 import qualified Pipes.Concurrent              as PC
 
 -- | An event var for composition from callbacks.
@@ -71,3 +82,66 @@ react (Signal p) f = runEffect $ for p $ \v -> liftIO $ f v
 -- | Explicitly cancel EVar.
 cancel :: EVar a -> IO ()
 cancel (EVar (_, _, seal)) = atomically seal
+
+type Map = Map.Map
+
+-- | Reference value for indexing BVar.
+-- Similar to topic in topic-based publish-subscribe system.
+newtype Bref = Bref String deriving (Eq, Ord, Show)
+
+instance IsString Bref where
+  fromString = Bref
+
+bref :: String -> Bref
+bref = Bref
+
+-- | Abstraction for simple homogeneous collection of EVars,
+-- in other words, all EVar in this collection should have same type.
+--
+-- This is useful when you need to perform publish/subscribe patterns
+-- in Haskell thread-per-connection model.
+newtype BVar a = BVar (TVar (Map Bref (EVar a)))
+
+-- | Create a BVar which contains empty evars.
+newBVar :: IO (BVar a)
+newBVar = BVar <$> newTVarIO Map.empty
+
+-- | Consruct BVar from list of Bref and EVar pairs.
+fromList :: [(Bref, EVar a)] -> IO (BVar a)
+fromList xs = BVar <$> newTVarIO (Map.fromList xs)
+
+-- | A combination of 'register' and 'derefBVar'.
+-- In many case, these commands can be combined together,
+-- and we encourage to use this first.
+eventsB :: MonadIO m => Bref -> EVar a -> BVar a -> IO (Signal m a)
+eventsB k v bvar = do
+  register k v bvar
+  return (events v)
+
+-- | Emit a value to BVar.
+emitB :: Bref -> a -> BVar a -> IO (Maybe a)
+emitB k val (BVar tvar) = do
+  m <- readTVarIO tvar
+  case Map.lookup k m of
+    Just evar -> emit val evar >> return (Just val)
+    Nothing   -> return Nothing
+
+type Size = Int
+
+-- | Emit batch of values into BVar,
+-- which is potentially increasing the throughput of emissions
+-- due to eliminate times for performing STM transactions.
+--
+-- However, the reading side might be affected.
+batch :: Size -> Signal m (Bref -> a) -> Signal m (Maybe a)
+batch size sig = undefined
+
+-- | Register an EVar with reference value to BVar.
+register :: Bref -> EVar a -> BVar a -> IO ()
+register k v (BVar tvar) = atomically $ modifyTVar tvar (Map.insert k v)
+
+-- | Generate Signal from BVar with a specific Bref.
+derefBVar :: MonadIO m => Bref -> BVar a -> IO (Maybe (Signal m a))
+derefBVar k (BVar tvar) = do
+  m <- readTVarIO tvar
+  return (events <$> Map.lookup k m)

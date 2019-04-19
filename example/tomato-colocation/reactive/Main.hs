@@ -10,6 +10,7 @@ where
 import           Control.Applicative
 import           Control.Monad
 import           Control.Exception
+import           Control.Concurrent
 
 import           Reactive.Tomato               as RT
 import           Tomato.Colocation.Reactive.Types
@@ -26,10 +27,14 @@ clients Context {..} = foldp go [] (events cvar)
   go (Remove c) xs = Prelude.filter (/= c) xs
 
 interact' :: Context -> Client -> IO ()
-interact' ctx@ Context {..} ct@(C uid conn) = do
-  msg <- WS.receiveData conn
-  emit (DE ct msg) dvar
-  interact' ctx ct
+interact' ctx@Context {..} client@(C uid conn) = do
+  evar     <- newEVar
+  commands <- eventsB (clientRef client) evar broker
+  _        <- forkIO . forever $ do
+    msg <- WS.receiveData conn
+    emit (DE client msg) dvar
+  react commands reaction
+  where reaction cmd = putStrLn "Perform command"
 
 handler :: Context -> WS.PendingConnection -> IO ()
 handler ctx@Context {..} pending = do
@@ -39,21 +44,6 @@ handler ctx@Context {..} pending = do
   putStrLn $ "New connection arrived with id : " <> show client
   WS.forkPingThread conn 30
   interact' ctx client
-  -- catch (react carrier reaction) $ \(e :: WS.ConnectionException) -> emit (Remove client) cvar
-
- where
-  isme me = RT.filter extract (events cvar)
-   where
-    extract (Add    c) = c == me
-    extract (Remove c) = c == me
-
-  carrier = liftA2 (,) (events cvar) (clients ctx)
-
-  reaction (c, xs) = do
-    let text (Add    c') = Text.pack $ "New client : " <> show c'
-        text (Remove c') = Text.pack $ "Remove client : " <> show c'
-    Text.putStrLn $ "Broadcast Text - " <> text c
-    forM_ xs $ \(C _ conn) -> WS.sendTextData conn (text c)
 
 main :: IO ()
 main = do

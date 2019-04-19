@@ -8,6 +8,7 @@ module Tomato.Colocation.Reactive.Types
   , Context(..)
   , newContext
   , newClient
+  , clientRef
   , SIO
   )
 where
@@ -36,13 +37,17 @@ data Command = BCast BSL.ByteString | Close
 data Context = Context
   { cvar :: !(EVar ControlE)
   , dvar :: !(EVar DataE)
+  , broker :: !(BVar Command)
   }
 
 newContext :: IO Context
-newContext = Context <$> newEVar <*> newEVar
+newContext = Context <$> newEVar <*> newEVar <*> newBVar
 
 newClient :: WS.Connection -> IO Client
 newClient conn = C <$> newUnique <*> pure conn
+
+clientRef :: Client -> Bref
+clientRef = bref . show
 
 -- For simplicity, we use only IO in embedded stack.
 type SIO = Signal IO
