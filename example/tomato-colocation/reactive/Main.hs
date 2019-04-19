@@ -20,39 +20,54 @@ import qualified Network.WebSockets            as WS
 import qualified Data.ByteString.Lazy          as BSL
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
+import qualified Data.Text.Encoding            as Text
 import qualified Data.Aeson                    as JSON
 
-clients :: Context -> SIO [Client]
-clients Context {..} = foldp go [] (events cvar)
+clients :: SIO ControlE -> SIO [Client]
+clients = foldp go []
  where
   go (Add    c) xs = c : xs
   go (Remove c) xs = Prelude.filter (/= c) xs
 
-type IdEvent = (Client, RealWorldEvent)
+type TagEvent = (Client, RealWorldEvent)
+type TagBS = (Client, BSL.ByteString)
 
-deserialize :: SIO DataE -> SIO IdEvent
+deserialize :: SIO DataE -> SIO TagEvent
 deserialize sigdata = filterJust $ do
   (DE client bs) <- sigdata
   case JSON.decode bs of
     Just realE -> return $ Just (client, realE)
     Nothing    -> return Nothing
 
-serialize :: SIO Client -> SIO CurrentView -> SIO BSL.ByteString
-serialize sigc sigview = filterJust $ sigview >>= encode
+-- FIXME - refer to native implementation, the encoding should be done before broadcasting.
+serialize :: SIO TagEvent -> SIO CurrentView -> SIO TagBS
+serialize sige sigview = filterJust $ sigview >>= encode
  where
   encode curr = do
-    (C uid _) <- sigc
-    return $ encodeEach uid curr
+    (ct@(C uid _), _) <- sige
+    return $ (\s -> (ct, s)) <$> encodeEach uid curr
 
-currView :: SIO IdEvent -> SIO CurrentView
+currView :: SIO TagEvent -> SIO CurrentView
 currView = foldp go newView where go (C uid _, realE) = updateView uid realE
+
+-- FIXME - buggy.
+runNetwork :: Context -> IO ()
+runNetwork Context {..} = void . forkIO $ do
+  let nrClients = (clients . events) cvar
+  -- TODO - we need to duplicate tagEvents for usage below?
+  -- Otherwise, view and serde will consumer these by interleaving.
+  let tagEvents = (deserialize . events) dvar
+  let view      = currView tagEvents
+  let serde     = serialize tagEvents view
+  react serde $ \(client, bs) -> void $ emitB (clientRef client) (BCast bs) broker
 
 interact' :: Context -> Client -> IO ()
 interact' ctx@Context {..} client@(C uid conn) = do
   evar     <- newEVar
   commands <- eventsB (clientRef client) evar broker
-  catch (repl commands)
-    $ \(e :: WS.ConnectionException) -> putStrLn "Close connection due to client side closed it."
+  catch (repl commands) $ \(e :: WS.ConnectionException) -> do
+    emit (Remove client) cvar
+    putStrLn "Close connection due to client side closed it."
 
  where
   repl commands = do
@@ -68,7 +83,7 @@ interact' ctx@Context {..} client@(C uid conn) = do
       msg <- WS.receiveData conn
       emit (DE client msg) dvar
 
-  reaction (BCast bs) = putStrLn "Broadcasting data"
+  reaction (BCast bs) = Text.putStrLn $ "Broadcast data : " <> Text.decodeUtf8 (BSL.toStrict bs)
   reaction (Close e ) = throwIO e
 
 handler :: Context -> WS.PendingConnection -> IO ()
@@ -84,4 +99,5 @@ main :: IO ()
 main = do
   putStrLn "Start websocket server at ws://127.0.0.1:9160"
   context <- newContext
+  runNetwork context
   WS.runServer "127.0.0.1" 9160 $ handler context
