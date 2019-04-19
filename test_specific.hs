@@ -12,8 +12,8 @@ module Main
   )
 where
 
-import           System.Process
-import           System.Environment
+import System.Environment
+import System.Process
 
 main :: IO ()
 main = do

@@ -4,12 +4,10 @@ module Reactive.Tomato.SF
   )
 where
 
-import           Prelude                 hiding ( id
-                                                , (.)
-                                                )
-import           Control.Category
+import Control.Category
+import Prelude hiding (id, (.))
 
-import           Reactive.Tomato.Signal
+import Reactive.Tomato.Signal
 
 newtype SF m a b = SF { unSF :: Signal m a -> Signal m b }
 

@@ -51,14 +51,11 @@ module Reactive.Tomato
   )
 where
 
-import           Prelude                 hiding ( filter
-                                                , take
-                                                , last
-                                                )
+import Prelude hiding (filter, take, last)
 
-import           Reactive.Tomato.Signal
-import           Reactive.Tomato.SF
-import           Reactive.Tomato.EVar
-import           Reactive.Tomato.Time
-import           Reactive.Tomato.Async
-import           Reactive.Tomato.Remote
+import Reactive.Tomato.Async
+import Reactive.Tomato.EVar
+import Reactive.Tomato.Remote
+import Reactive.Tomato.SF
+import Reactive.Tomato.Signal
+import Reactive.Tomato.Time

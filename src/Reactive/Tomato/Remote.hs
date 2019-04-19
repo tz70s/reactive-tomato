@@ -62,19 +62,19 @@ module Reactive.Tomato.Remote
   )
 where
 
-import           Control.Monad                  ( void )
-import           Control.Monad.Reader
-import           Control.Concurrent
-import           Codec.Serialise
-import           Pipes
+import Codec.Serialise
+import Control.Concurrent
+import Control.Monad (void)
+import Control.Monad.Reader
+import Pipes
 
-import           Reactive.Tomato.Signal
-import           Reactive.Tomato.Async
-import           Reactive.Tomato.EVar
+import Reactive.Tomato.Async
+import Reactive.Tomato.EVar
+import Reactive.Tomato.Signal
 
-import qualified Data.ByteString               as BS
-import qualified Data.ByteString.Lazy          as BSL
-import qualified Database.Redis                as Redis
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
+import qualified Database.Redis as Redis
 
 -- | Reference identifier for signal, the type variable is useful for type inference.
 data Sid a = Sid

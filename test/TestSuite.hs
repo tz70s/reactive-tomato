@@ -3,12 +3,12 @@ module Main
   )
 where
 
-import           Test.Tasty
+import Test.Tasty
 
-import qualified Reactive.Tomato.Signal.Tests  as Signal
-import qualified Reactive.Tomato.EVar.Tests    as EVar
-import qualified Reactive.Tomato.Time.Tests    as Time
-import qualified Reactive.Tomato.Remote.Tests  as Remote
+import qualified Reactive.Tomato.EVar.Tests as EVar
+import qualified Reactive.Tomato.Remote.Tests as Remote
+import qualified Reactive.Tomato.Signal.Tests as Signal
+import qualified Reactive.Tomato.Time.Tests as Time
 
 main :: IO ()
 main = defaultMain tests

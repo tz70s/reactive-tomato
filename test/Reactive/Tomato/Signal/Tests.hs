@@ -6,13 +6,13 @@ module Reactive.Tomato.Signal.Tests
   )
 where
 
-import           Control.Monad.Identity
-import           Control.Monad.IO.Class
-import           Test.Tasty
-import           Test.Tasty.HUnit
-import           Test.Tasty.QuickCheck
+import Control.Monad.Identity
+import Control.Monad.IO.Class
+import Test.Tasty
+import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 
-import           Reactive.Tomato               as RT
+import Reactive.Tomato as RT
 
 tests :: TestTree
 tests = testGroup
@@ -62,10 +62,11 @@ testApplicative = do
 testMonad :: Assertion
 testMonad = do
   let cnt = foldp (+) 0 $ constant (1 :: Int)
-  let sigprint = do
-        val <- cnt
-        liftIO . putStrLn $ "Monad tests get value : " <> show val
-        return val
+  let
+    sigprint = do
+      val <- cnt
+      liftIO . putStrLn $ "Monad tests get value : " <> show val
+      return val
   xs <- interpretM $ RT.take 10 sigprint
   xs @?= [1 .. 10]
 

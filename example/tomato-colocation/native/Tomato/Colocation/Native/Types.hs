@@ -14,13 +14,13 @@ module Tomato.Colocation.Native.Types
   )
 where
 
-import           Control.Monad.Reader
-import           Control.Concurrent.STM
-import           Data.Unique
+import Control.Concurrent.STM
+import Control.Monad.Reader
+import Data.Unique
 
-import           Tomato.Colocation
+import Tomato.Colocation
 
-import qualified Network.WebSockets            as WS
+import qualified Network.WebSockets as WS
 
 data Client = C Unique WS.Connection
 

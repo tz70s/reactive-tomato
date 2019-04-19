@@ -3,13 +3,13 @@ module Reactive.Tomato.Time.Tests
   )
 where
 
-import           Control.Monad.IO.Class
-import           Control.Applicative
-import           Test.Tasty
-import           Test.Tasty.HUnit
-import           System.IO
+import Control.Applicative
+import Control.Monad.IO.Class
+import System.IO
+import Test.Tasty
+import Test.Tasty.HUnit
 
-import           Reactive.Tomato               as RT
+import Reactive.Tomato as RT
 
 tests :: TestTree
 tests = testGroup

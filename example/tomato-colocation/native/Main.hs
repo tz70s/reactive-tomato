@@ -6,21 +6,21 @@ module Main
   )
 where
 
-import           Control.Exception
-import           Control.Monad
-import           Control.Monad.Reader
-import           Control.Monad.Except
-import           Control.Concurrent             ( forkIO )
-import           Control.Concurrent.STM
+import Control.Concurrent (forkIO)
+import Control.Concurrent.STM
+import Control.Exception
+import Control.Monad
+import Control.Monad.Reader
+import Control.Monad.Except
 
-import           Tomato.Colocation
-import           Tomato.Colocation.Native.Types
+import Tomato.Colocation
+import Tomato.Colocation.Native.Types
 
-import qualified Data.ByteString.Lazy          as BSL
-import qualified Data.Text                     as Text
-import qualified Data.Text.IO                  as Text
-import qualified Data.Aeson                    as JSON
-import qualified Network.WebSockets            as WS
+import qualified Data.Aeson as JSON
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
+import qualified Network.WebSockets as WS
 
 rethrow :: IO a -> ExceptT WS.ConnectionException AppM a
 rethrow action = do

@@ -15,13 +15,13 @@ module Tomato.Colocation
   )
 where
 
-import           Data.Unique
-import           Data.Aeson
-import           GHC.Generics                   ( Generic )
+import Data.Aeson
+import Data.Unique
+import GHC.Generics (Generic)
 
-import qualified Data.Text                     as Text
-import qualified Data.Map                      as Map
-import qualified Data.ByteString.Lazy          as BSL
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 type Colocation = (Double, Double)
 type Speed = Colocation
@@ -61,8 +61,9 @@ relations uid (CurrView m) = do
   value <- Map.lookup uid m
   return $ foldr (go value) [] m
  where
-  go v entry xs | entry == v = xs
-                | otherwise  = EmergencyRelation entry (collision entry v) : xs
+  go v entry xs
+    | entry == v = xs
+    | otherwise  = EmergencyRelation entry (collision entry v) : xs
 
 data EmergencyRelation = EmergencyRelation RealWorldEvent EmergencyLevel deriving (Show, Generic)
 

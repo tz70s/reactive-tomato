@@ -6,15 +6,15 @@ module Reactive.Tomato.Async
   )
 where
 
-import           Pipes
-import           Control.Concurrent      hiding ( yield )
-import           Control.Concurrent.STM
-import           Control.Monad                  ( void )
-import           Control.Monad.Reader
+import Control.Concurrent hiding (yield)
+import Control.Concurrent.STM
+import Control.Monad (void)
+import Control.Monad.Reader
+import Pipes
 
-import           Reactive.Tomato.Signal
+import Reactive.Tomato.Signal
 
-import qualified Pipes.Concurrent              as PC
+import qualified Pipes.Concurrent as PC
 
 -- Type class for forking thread in a general context.
 class (Monad m) => MonadFork m where

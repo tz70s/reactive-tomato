@@ -7,21 +7,21 @@ module Main
   )
 where
 
-import           Control.Applicative
-import           Control.Monad
-import           Control.Exception
-import           Control.Concurrent
+import Control.Applicative
+import Control.Concurrent
+import Control.Exception
+import Control.Monad
 
-import           Reactive.Tomato               as RT
-import           Tomato.Colocation
-import           Tomato.Colocation.Reactive.Types
+import Reactive.Tomato as RT
+import Tomato.Colocation
+import Tomato.Colocation.Reactive.Types
 
-import qualified Network.WebSockets            as WS
-import qualified Data.ByteString.Lazy          as BSL
-import qualified Data.Text                     as Text
-import qualified Data.Text.IO                  as Text
-import qualified Data.Text.Encoding            as Text
-import qualified Data.Aeson                    as JSON
+import qualified Data.Aeson as JSON
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
+import qualified Data.Text.Encoding as Text
+import qualified Network.WebSockets as WS
 
 clients :: SIO ControlE -> SIO [Client]
 clients = foldp go []

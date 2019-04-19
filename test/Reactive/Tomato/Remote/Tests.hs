@@ -5,10 +5,10 @@ module Reactive.Tomato.Remote.Tests
   )
 where
 
-import           Test.Tasty
-import           Test.Tasty.HUnit
+import Test.Tasty
+import Test.Tasty.HUnit
 
-import           Reactive.Tomato               as RT
+import Reactive.Tomato as RT
 
 tests :: TestTree
 tests = testGroup

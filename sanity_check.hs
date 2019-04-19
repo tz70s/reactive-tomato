@@ -12,7 +12,7 @@ module Main
   )
 where
 
-import           Reactive.Tomato
+import Reactive.Tomato
 
 main :: IO ()
 main = do

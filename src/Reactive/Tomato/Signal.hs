@@ -16,18 +16,15 @@ module Reactive.Tomato.Signal
   )
 where
 
-import           Prelude                 hiding ( filter
-                                                , take
-                                                , last
-                                                )
-import           Pipes
-import           Control.Monad                  ( forever )
-import           Control.Monad.State.Class
-import           Control.Monad.Error.Class
-import           Control.Monad.Identity
-import           Control.Applicative
+import Control.Applicative
+import Control.Monad (forever)
+import Control.Monad.State.Class
+import Control.Monad.Error.Class
+import Control.Monad.Identity
+import Pipes
+import Prelude hiding (filter, take, last)
 
-import qualified Pipes.Prelude                 as PP
+import qualified Pipes.Prelude as PP
 
 -- | Signal abstraction - the representation is isomorphic to ListT.
 --

@@ -12,17 +12,17 @@ module Reactive.Tomato.Time
   )
 where
 
-import           Control.Applicative
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Control.Concurrent      hiding ( yield )
-import           Pipes                   hiding ( every )
+import Control.Applicative
+import Control.Concurrent hiding (yield)
+import Control.Monad
+import Control.Monad.IO.Class
+import Pipes hiding (every)
 
-import           Reactive.Tomato.Signal
-import           Reactive.Tomato.EVar
-import           Reactive.Tomato.Async
+import Reactive.Tomato.Async
+import Reactive.Tomato.EVar
+import Reactive.Tomato.Signal
 
-import qualified Pipes.Concurrent              as PC
+import qualified Pipes.Concurrent as PC
 
 -- | Necessary to keep EVar because of garbage collection.
 newtype Timer m = T (Signal m (), EVar ())

@@ -14,13 +14,13 @@ module Tomato.Colocation.Reactive.Types
   )
 where
 
-import           Data.Unique
-import           Control.Exception
+import Control.Exception
+import Data.Unique
 
-import           Reactive.Tomato               as RT
+import Reactive.Tomato as RT
 
-import qualified Data.ByteString.Lazy          as BSL
-import qualified Network.WebSockets            as WS
+import qualified Data.ByteString.Lazy as BSL
+import qualified Network.WebSockets as WS
 
 data Client = C Unique WS.Connection
 
