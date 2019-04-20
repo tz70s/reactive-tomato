@@ -77,10 +77,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Database.Redis as Redis
 
 -- | Reference identifier for signal, the type variable is useful for type inference.
-data Sid a = Sid
-  { ids :: BS.ByteString
-  , evar :: EVar a
-  }
+data Sid a = Sid { ids :: BS.ByteString, evar :: EVar a }
 
 -- | Construct a sid, in cluster monad.
 -- 
@@ -108,8 +105,8 @@ newtype ClusterMethod = PubSubM Redis.Connection
 newtype Cluster m a = CT (ReaderT ClusterMethod m a)
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadReader ClusterMethod)
 
-instance MonadFork m => MonadFork (Cluster m) where
-  fork (CT r) = CT (fork r)
+instance MonadAsync m => MonadAsync (Cluster m) where
+  async (CT r) = CT (async r)
 
 -- | Build monadic computation from configuration, a.k.a ClusterInfo.
 --

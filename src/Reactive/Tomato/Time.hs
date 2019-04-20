@@ -14,7 +14,7 @@ where
 
 import Control.Applicative
 import Control.Concurrent hiding (yield)
-import Control.Monad
+import Control.Concurrent.Async hiding (async)
 import Control.Monad.IO.Class
 import Pipes hiding (every)
 
@@ -96,23 +96,25 @@ throttle timer = liftA2 (flip const) (start timer)
 -- let tick = every $ second 1
 -- let snap = snapshot tick counter
 -- @
-snapshot :: (MonadFork m, MonadIO m) => Timer m -> Signal m a -> Signal m a
+snapshot :: (MonadAsync m, MonadIO m) => Timer m -> Signal m a -> Signal m a
 snapshot timer (Signal p) = Signal $ do
   res <- lift $ next p
   case res of
     Left  _      -> pure ()
     Right (x, _) -> do
       (output, input) <- liftIO $ PC.spawn $ PC.latest x
-      void . lift . fork $ runEffect $ p >-> PC.toOutput output
+      a <- lift . async $ runEffect $ p >-> PC.toOutput output
       unS $ liftA2 const (Signal (PC.fromInput input)) (start timer)
+      liftIO $ wait a
 
 -- | Window the value of specific time window (interval).
 --
 -- FIXME - the implementation is not correct.
-window :: (MonadFork m, MonadIO m) => Timer m -> Signal m a -> Signal m (Signal m a)
+window :: (MonadAsync m, MonadIO m) => Timer m -> Signal m a -> Signal m (Signal m a)
 window timer (Signal p) = subroutine <$ start timer
  where
   subroutine = Signal $ do
     (output, input) <- liftIO $ PC.spawn PC.unbounded
-    _               <- lift . fork $ runEffect $ p >-> PC.toOutput output
+    a               <- lift . async $ runEffect $ p >-> PC.toOutput output
     PC.fromInput input
+    liftIO $ wait a

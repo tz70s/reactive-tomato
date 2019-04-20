@@ -33,6 +33,7 @@ library
                      , hedis
                      , serialise
                      , containers
+                     , async
 
 test-suite reactive-tomato-tests
   type:                exitcode-stdio-1.0

@@ -72,6 +72,8 @@ emit val (EVar (output, _, _)) = runEffect $ yield val >-> PC.toOutput output
 -- | Convert EVar to Signal.
 --
 -- Problem: if output is terminated, the input will be terminated as well.
+--
+-- FIXME - make this sharing.
 events :: MonadIO m => EVar a -> Signal m a
 events (EVar (_, input, _)) = Signal $ PC.fromInput input
 
@@ -125,16 +127,6 @@ emitB k val (BVar tvar) = do
   case Map.lookup k m of
     Just evar -> emit val evar >> return (Just val)
     Nothing   -> return Nothing
-
-type Size = Int
-
--- | Emit batch of values into BVar,
--- which is potentially increasing the throughput of emissions
--- due to eliminate times for performing STM transactions.
---
--- However, the reading side might be affected.
-batch :: Size -> Signal m (Bref -> a) -> Signal m (Maybe a)
-batch size sig = undefined
 
 -- | Register an EVar with reference value to BVar.
 register :: Bref -> EVar a -> BVar a -> IO ()

@@ -1,43 +1,42 @@
 module Reactive.Tomato.Async
-  ( MonadFork(..)
-  , async
+  ( MonadAsync(..)
+  , asyncS
   , merge
   , mergeAll
   )
 where
 
-import Control.Concurrent hiding (yield)
-import Control.Concurrent.STM
-import Control.Monad (void)
 import Control.Monad.Reader
 import Pipes
 
 import Reactive.Tomato.Signal
 
+import qualified Control.Concurrent.Async as Async
 import qualified Pipes.Concurrent as PC
 
 -- Type class for forking thread in a general context.
-class (Monad m) => MonadFork m where
-  fork :: m () -> m ThreadId
+class (Monad m) => MonadAsync m where
+  async :: m a -> m (Async.Async a)
 
-instance MonadFork IO where
-  fork = forkIO
+instance MonadAsync IO where
+  async = Async.async
 
-instance MonadFork m => MonadFork (ReaderT r m) where
-  fork (ReaderT r) = ReaderT (fork . r)
+instance MonadAsync m => MonadAsync (ReaderT r m) where
+  async (ReaderT r) = ReaderT (async . r)
 
 -- | Make the wrapping signal into seperate thread.
 --
 -- @
--- let asyncSignal = async heavySignal
+-- let asyncSignal = forkS heavySignal
 -- @
-async :: (MonadFork m, MonadIO m) => Signal m a -> Signal m a
-async (Signal as) = do
-  (output, input, seal) <- liftIO $ PC.spawn' PC.unbounded
-  void $ lift $ fork $ do
+asyncS :: (MonadAsync m, MonadIO m) => Signal m a -> Signal m a
+asyncS (Signal as) = Signal $ do
+  (output, input) <- liftIO $ PC.spawn PC.unbounded
+  a               <- lift $ async $ do
     runEffect $ as >-> PC.toOutput output
-    liftIO $ atomically seal
-  Signal $ PC.fromInput input
+    liftIO $ PC.performGC
+  PC.fromInput input
+  liftIO $ Async.wait a
 
 -- | Merge two signal by interleaving event occurrences.
 -- 
@@ -58,7 +57,7 @@ async (Signal as) = do
 -- If you need that guarantee, please consider using FRP library.
 -- That is, the interleaving effect is non-determinism,
 -- the only guarantee is we preserved the FIFO ordering in each signal.
-merge :: (MonadFork m, MonadIO m) => Signal m a -> Signal m a -> Signal m a
+merge :: (MonadAsync m, MonadIO m) => Signal m a -> Signal m a -> Signal m a
 merge s1 s2 = mergeAll [s1, s2]
 
 -- | Merge list of signal by interleaving event occurrences.
@@ -67,15 +66,11 @@ merge s1 s2 = mergeAll [s1, s2]
 -- If you need that guarantee, please consider using FRP library.
 -- That is, the interleaving effect is non-determinism,
 -- the only guarantee is we preserved the FIFO ordering in each signal
-mergeAll :: (MonadFork m, MonadIO m) => [Signal m a] -> Signal m a
+mergeAll :: (Traversable t, MonadAsync m, MonadIO m) => t (Signal m a) -> Signal m a
 mergeAll xs = Signal $ do
-  (output, input, seal) <- liftIO $ PC.spawn' PC.unbounded
-  go output seal xs
+  (output, input) <- liftIO $ PC.spawn PC.unbounded
+  as              <- lift $ forM xs $ \(Signal as) -> async $ do
+    runEffect $ as >-> PC.toOutput output
+    liftIO $ PC.performGC
   PC.fromInput input
- where
-  go _      _    []               = return ()
-  go output seal (Signal p : xs') = do
-    void . lift . fork $ do
-      runEffect $ p >-> PC.toOutput output
-      liftIO $ atomically seal
-    go output seal xs'
+  liftIO $ mapM_ Async.wait as

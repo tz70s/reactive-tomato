@@ -34,7 +34,7 @@ testStatefulConter = do
     sid0 <- sid "cnt0"
     -- In general, spawn will block the thread until the signal is terminated.
     -- Therefore, the Cluster monad is instance of MonadFork that you can fork the spawn into separate threads.
-    _    <- fork $ spawn sid0 updates
+    _    <- async $ spawn sid0 updates
     remote sid0
   xs <- interpretM (RT.take 10 cnt1)
   xs @?= [1 .. 10]
