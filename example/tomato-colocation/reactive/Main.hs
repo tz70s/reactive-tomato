@@ -39,14 +39,6 @@ deserialize sigdata = filterJust $ do
     Just realE -> return $ Just (client, realE)
     Nothing    -> return Nothing
 
--- FIXME - refer to native implementation, the encoding should be done before broadcasting.
-serialize :: SIO TagEvent -> SIO CurrentView -> SIO TagBS
-serialize sige sigview = filterJust $ sigview >>= encode
- where
-  encode curr = do
-    (ct@(C uid _), _) <- sige
-    return $ (\s -> (ct, s)) <$> encodeEach uid curr
-
 currView :: SIO TagEvent -> SIO CurrentView
 currView = foldp go newView where go (C uid _, realE) = updateView uid realE
 
@@ -57,9 +49,8 @@ runNetwork Context {..} = void . forkIO $ do
   -- TODO - we need to duplicate tagEvents for usage below?
   -- Otherwise, view and serde will consumer these by interleaving.
   let tagEvents = (deserialize . events) dvar
-  let view      = currView tagEvents
-  let serde     = serialize tagEvents view
-  react serde $ \(client, bs) -> void $ emitB (clientRef client) (BCast bs) broker
+  let view      = liftA2 (,) tagEvents (currView tagEvents)
+  react view $ \((client, _), view) -> void $ emitB (clientRef client) (BCast view) broker
 
 interact' :: Context -> Client -> IO ()
 interact' ctx@Context {..} client@(C uid conn) = do
@@ -83,8 +74,10 @@ interact' ctx@Context {..} client@(C uid conn) = do
       msg <- WS.receiveData conn
       emit (DE client msg) dvar
 
-  reaction (BCast bs) = Text.putStrLn $ "Broadcast data : " <> Text.decodeUtf8 (BSL.toStrict bs)
-  reaction (Close e ) = throwIO e
+  reaction (BCast view) = case encodeEach uid view of
+    Just bs -> Text.putStrLn $ "Broadcast data : " <> Text.decodeUtf8 (BSL.toStrict bs)
+    Nothing -> return ()
+  reaction (Close e) = throwIO e
 
 handler :: Context -> WS.PendingConnection -> IO ()
 handler ctx@Context {..} pending = do

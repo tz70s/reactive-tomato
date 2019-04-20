@@ -18,7 +18,6 @@ module Reactive.Tomato
   , emit
   , events
   , react
-  , cancel
   , Bref
   , bref
   , BVar

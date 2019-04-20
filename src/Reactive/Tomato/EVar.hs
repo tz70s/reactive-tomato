@@ -4,7 +4,6 @@ module Reactive.Tomato.EVar
   , emit
   , events
   , react
-  , cancel
   , Bref
   , bref
   , BVar
@@ -18,6 +17,7 @@ module Reactive.Tomato.EVar
 where
 
 import Control.Concurrent.STM
+import Control.Monad
 import Data.String
 import Pipes hiding (await)
 
@@ -73,17 +73,12 @@ emit val (EVar (output, _, _)) = runEffect $ yield val >-> PC.toOutput output
 --
 -- Problem: if output is terminated, the input will be terminated as well.
 --
--- FIXME - make this sharing.
 events :: MonadIO m => EVar a -> Signal m a
 events (EVar (_, input, _)) = Signal $ PC.fromInput input
 
 -- | React Signal to perform side effects.
 react :: MonadIO m => Signal m a -> (a -> IO ()) -> m ()
 react (Signal p) f = runEffect $ for p $ \v -> liftIO $ f v
-
--- | Explicitly cancel EVar.
-cancel :: EVar a -> IO ()
-cancel (EVar (_, _, seal)) = atomically seal
 
 type Map = Map.Map
 

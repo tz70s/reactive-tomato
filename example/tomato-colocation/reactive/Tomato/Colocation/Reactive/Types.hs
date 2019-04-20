@@ -17,6 +17,7 @@ where
 import Control.Exception
 import Data.Unique
 
+import Tomato.Colocation
 import Reactive.Tomato as RT
 
 import qualified Data.ByteString.Lazy as BSL
@@ -34,7 +35,7 @@ data ControlE = Add Client | Remove Client
 
 data DataE = DE Client BSL.ByteString
 
-data Command = BCast BSL.ByteString | forall e . Exception e => Close e
+data Command = BCast CurrentView | forall e . Exception e => Close e
 
 data Context = Context
   { cvar :: !(EVar ControlE)

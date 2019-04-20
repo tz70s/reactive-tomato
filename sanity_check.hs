@@ -2,7 +2,6 @@
 {- stack
   runghc
   --resolver lts-13.13
-  --package async
   --package reactive-tomato
 -}
 
@@ -13,8 +12,9 @@ module Main
   )
 where
 
-import Control.Concurrent.Async as Async
+import Control.Concurrent
 import Control.Monad
+import System.IO
 
 import Reactive.Tomato as RT
 
@@ -34,11 +34,10 @@ checkRemote = do
 
 checkSharing :: IO ()
 checkSharing = do
+  hSetBuffering stdout LineBuffering
   evar <- newEVar
-  a    <- Async.async $ forM_ [1 .. 10] $ \n -> emit n evar
-  let init = listGen [1 .. 100]
-  let sig0 = init
-  let sig1 = init
-  let sig2 = sig0 `merge` sig1
-  react sig2 print
-  wait a
+  forkIO $ forM_ [1 .. 10] $ \num -> emit num evar
+  let sig0 = events evar
+  let sig1 = sig0
+  let sig2 = sig0
+  react (sig1 `merge` sig2) print
