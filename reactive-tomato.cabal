@@ -19,6 +19,7 @@ library
   exposed-modules:     Reactive.Tomato
                      , Reactive.Tomato.Async
                      , Reactive.Tomato.Remote
+                     , Reactive.Tomato.Event
   other-modules:       Reactive.Tomato.Signal
                      , Reactive.Tomato.SF
                      , Reactive.Tomato.EVar
