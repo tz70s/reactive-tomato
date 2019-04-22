@@ -1,16 +1,23 @@
 module Reactive.Tomato
   (
-    -- * Signal abstractions.
-    Signal
-  , constant
-  , listGen
+
+    -- * Event abstractions.
+    Event(..)
   , filter
   , filterJust
   , foldp
+  , union
+  , unionAll
+  , repeat
+  , generate
   , interpret
-  , interpretM
   , take
-  , last
+
+  -- * Signal abstractions.
+  , Signal
+  , newSignal
+  , cancel
+  , changes
 
     -- * EVar abstractions.
   , EVar
@@ -26,35 +33,11 @@ module Reactive.Tomato
   , register
   , fromList
   , eventsB
-
-    -- * Time function.
-  , Timer
-  , Time
-  , second
-  , micro
-  , milli
-  , every
-  , start
-  , throttle
-  , snapshot
-  , window
-
-    -- * Experimental Signal Function (SF) extension.
-  , module Reactive.Tomato.SF
-
-    -- * Asynchronous utitilies.
-  , module Reactive.Tomato.Async
-
-    -- * Remote / distributed utilities.
-  , module Reactive.Tomato.Remote
   )
 where
 
-import Prelude hiding (filter, take, last)
+import Prelude hiding (filter, take, last, repeat)
 
-import Reactive.Tomato.Async
+import Reactive.Tomato.Event
 import Reactive.Tomato.EVar
-import Reactive.Tomato.Remote
-import Reactive.Tomato.SF
 import Reactive.Tomato.Signal
-import Reactive.Tomato.Time

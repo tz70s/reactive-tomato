@@ -14,18 +14,17 @@ where
 
 import Control.Applicative
 import Control.Concurrent hiding (yield)
-import Control.Concurrent.Async hiding (async)
+import Control.Concurrent.Async
 import Control.Monad.IO.Class
 import Pipes hiding (every)
 
-import Reactive.Tomato.Async
 import Reactive.Tomato.EVar
-import Reactive.Tomato.Signal
+import Reactive.Tomato.Event
 
 import qualified Pipes.Concurrent as PC
 
 -- | Necessary to keep EVar because of garbage collection.
-newtype Timer m = T (Signal m (), EVar ())
+newtype Timer = T (Event (), EVar ())
 
 -- | Wrapper for simplify calling with every.
 data Time
@@ -46,10 +45,10 @@ micro :: Int -> Time
 micro = Micro
 
 -- | Spawn a signal that tick every specific time interval.
-every :: MonadIO m => Time -> IO (Timer m)
+every :: Time -> IO Timer
 every intvl = do
   evar <- newEVar
-  _    <- forkIO $ go evar
+  _    <- async $ go evar
   return $ T (events evar, evar)
  where
   toMicro (Second t) = t * 1000000
@@ -58,7 +57,7 @@ every intvl = do
 
   go evar = do
     threadDelay $ toMicro intvl
-    emit () evar
+    emit evar ()
     go evar
 
 -- | Start a timer into signal which produce void value.
@@ -77,7 +76,7 @@ every intvl = do
 -- @
 -- throttle timer = liftA2 (flip const) (start timer)
 -- @
-start :: MonadIO m => Timer m -> Signal m ()
+start :: Timer -> Event ()
 start (T (sig, _)) = sig
 
 -- | Throttle signal propagation speed in milliseconds.
@@ -85,7 +84,7 @@ start (T (sig, _)) = sig
 -- @
 -- let sig = throttle (second 1) $ constant 1
 -- @
-throttle :: MonadIO m => Timer m -> Signal m a -> Signal m a
+throttle :: Timer -> Event a -> Event a
 throttle timer = liftA2 (flip const) (start timer)
 
 -- | Snapshot the value of specific time point.
@@ -96,25 +95,25 @@ throttle timer = liftA2 (flip const) (start timer)
 -- let tick = every $ second 1
 -- let snap = snapshot tick counter
 -- @
-snapshot :: (MonadAsync m, MonadIO m) => Timer m -> Signal m a -> Signal m a
-snapshot timer (Signal p) = Signal $ do
-  res <- lift $ next p
+snapshot :: Timer -> Event a -> Event a
+snapshot timer (E as) = E $ do
+  res <- lift $ next as
   case res of
     Left  _      -> pure ()
     Right (x, _) -> do
       (output, input) <- liftIO $ PC.spawn $ PC.latest x
-      a <- lift . async $ runEffect $ p >-> PC.toOutput output
-      unS $ liftA2 const (Signal (PC.fromInput input)) (start timer)
+      a               <- lift . async $ runEffect $ as >-> PC.toOutput output
+      unE $ liftA2 const (E (PC.fromInput input)) (start timer)
       liftIO $ wait a
 
 -- | Window the value of specific time window (interval).
 --
 -- FIXME - the implementation is not correct.
-window :: (MonadAsync m, MonadIO m) => Timer m -> Signal m a -> Signal m (Signal m a)
-window timer (Signal p) = subroutine <$ start timer
+window :: Timer -> Event a -> Event (Event a)
+window timer (E as) = subroutine <$ start timer
  where
-  subroutine = Signal $ do
+  subroutine = E $ do
     (output, input) <- liftIO $ PC.spawn PC.unbounded
-    a               <- lift . async $ runEffect $ p >-> PC.toOutput output
+    a               <- lift . async $ runEffect $ as >-> PC.toOutput output
     PC.fromInput input
     liftIO $ wait a

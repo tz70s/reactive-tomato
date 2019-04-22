@@ -1,40 +1,41 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+
 module Reactive.Tomato.Event
-  ( Event
-  , generate
+  ( Event(..)
+  , filter
+  , filterJust
+  , foldp
   , union
   , unionAll
-  , take
+  , last
+  , generate
+  , Reactive.Tomato.Event.repeat
   , interpret
-  , EVar
-  , newEVar
-  , emit
-  , events
-  , react
-  , Cell
-  , newCell
-  , changes
+  , take
   )
 where
 
-import Control.Concurrent hiding (yield)
+import Control.Applicative
 import Control.Concurrent.Async hiding (cancel)
-import Control.Concurrent.STM
-import Control.Monad (forM, forM_)
+import Control.Monad (forM)
 import Pipes
-import Prelude hiding (take)
+import Prelude hiding (filter, take, last)
 
 import qualified Pipes.Concurrent as PC
 import qualified Pipes.Prelude as PP
 
+-- Design Note:
+-- 1. Event can't be shared (recomputation), all events should be generated via EVars from callbacks.
+-- 2. Stateful unit is cached in Signal, which has much limit interface, but similar to time-varying value.
 
--- Revision abstraction.
--- Make the calls safer.
-
--- 1. Event can't be shared (recomputation), all events should generate via EVars from callbacks.
--- 2. Stateful unit is rename to Cell (a.k.a Signal), but has much limit interface.
--- 3. Change propagation is interop with Event.
-
+-- | Event abstraction.
+--
+-- Event can be combined with various way (i.e. functor, applicative and monad).
+-- 
+-- Note on Applicative instance: merging events are synchronous,
+-- for asynchronous merging, please refer to 'union' or 'unionAll' variants.
+--
+-- Please refer to unit/property tests for behavior of events.
 newtype Event a = E { unE :: Producer a IO () }
 
 instance Functor Event where
@@ -68,18 +69,73 @@ instance Monad Event where
             yield n
             unE $ E xs' >>= f
 
+instance Alternative Event where
+  empty = E $ return ()
+
+  (E es0) <|> (E es1) = E $ go es0 es1
+   where
+    go as bs = do
+      ae <- lift $ next as
+      case ae of
+        Left _ -> do
+          be <- lift $ next bs
+          case be of
+            Left  _        -> pure ()
+            -- TODO - possible optimize? We already know that as is terminated, then we can reduce the calling it?
+            Right (b, be') -> yield b >> go as be'
+        Right (a, as') -> yield a >> go as' bs
+
+-- | Infinite sequence of event occurrences.
+repeat :: a -> Event a
+repeat = generate . Prelude.repeat
+
+-- | Generate events from a list, which can be finite or infinite.
+-- 
+-- Note that this is not intended to be used.
+-- In general, you should almost work with EVar emission.
+--
+-- @
+-- let e1 = generate [1, 2, 3, 4, 5]
+-- xs <- interpret e1
+-- xs == [1, 2, 3, 4, 5]
+-- @
 generate :: [a] -> Event a
 generate = E . go where go = foldr ((>>) . yield) mempty
 
--- | Interpret signal into list within monad context, useful to inspecting signal transformation.
+-- | Interpret 'Event' into list within monad context, useful to inspecting events transformation.
 --
 -- Note that this is intentionally used in testing.
 interpret :: Event a -> IO [a]
 interpret (E es) = PP.toListM es
 
+-- | Merge two 'Event' by interleaving event occurrences.
+-- 
+-- Comparing to merging in applicative instance, i.e. @liftA2 (+) (repeat 1) (repeat 2)@,
+-- the events are propagated \asynchronously\.
+--
+-- i.e.
+--
+-- @
+-- let e0 = foldp (+) 0 $ repeat 1
+-- let e1 = foldp (+) 0 $ repeat 2
+-- let e2 = union e0 e1
+-- -- Ideally, the sequence will be interleaved with each events.
+-- -- sigm ~> [1, 2, 2, 3, 4, 4, 6, 5 ..]
+-- @
+-- 
+-- There's no guarantee how the interleaving effect is performed.
+-- If you need that guarantee, please consider using FRP library.
+-- That is, the interleaving effect is non-determinism,
+-- the only guarantee is we preserved the FIFO ordering in each events.
 union :: Event a -> Event a -> Event a
 union s1 s2 = unionAll [s1, s2]
 
+-- | Merge list of events by interleaving event occurrences.
+--
+-- There's no guarantee how the interleaving effect is performed.
+-- If you need that guarantee, please consider using FRP library.
+-- That is, the interleaving effect is non-determinism,
+-- the only guarantee is we preserved the FIFO ordering in each events.
 unionAll :: Traversable t => t (Event a) -> Event a
 unionAll xs = E $ do
   (output, input) <- liftIO $ PC.spawn PC.unbounded
@@ -89,49 +145,75 @@ unionAll xs = E $ do
   PC.fromInput input
   liftIO $ mapM_ wait as
 
--- | Take bounded elements from signal, then terminate it.
+-- | Take bounded elements from events, then terminate it.
 take :: Int -> Event a -> Event a
 take times (E es) = E $ es >-> PP.take times
 
-newtype EVar a = EVar (PC.Output a, PC.Input a, STM ())
+-- | Filter elements with predicate function.
+--
+-- @
+-- let cnt = foldp (+) 0 $ repeat 1
+-- let even = filter (\i -> i `mod` 2 == 0) cnt
+-- interpret even == [2, 4 ..]
+-- @
+filter :: (a -> Bool) -> Event a -> Event a
+filter f (E p) = E $ p >-> PP.filter f
 
-newEVar :: IO (EVar a)
-newEVar = do
-  (output, input, seal) <- PC.spawn' PC.unbounded
-  return $ EVar (output, input, seal)
-
-emit :: EVar a -> a -> IO ()
-emit (EVar (output, _, _)) val = runEffect $ yield val >-> PC.toOutput output
-
-events :: EVar a -> Event a
-events (EVar (_, input, _)) = E $ PC.fromInput input
-
-react :: Event a -> (a -> IO ()) -> IO ()
-react (E es) f = runEffect $ for es $ \v -> liftIO $ f v
-
--- | Now idea to close the thread id properly.
-data Cell a = Cell { cache :: TVar a, latches :: TVar [EVar a], tid :: ThreadId }
-
--- Thought: we can react to pump, change tha cache value and propagate to latches.
--- Maybe we can return IO (Cell a), fork a thread and use it to generate events.
--- ThreadId will be cached then we can kill it when we need?
-newCell :: a -> Event a -> IO (Cell a)
-newCell init pump' = do
-  cache' <- newTVarIO init
-  latch' <- newTVarIO []
-  tid'   <- forkIO $ react pump' (reaction cache' latch')
-  return (Cell cache' latch' tid')
+-- | Extract maybe elements into only just value.
+--
+-- @
+-- let e0 = generate [Just 1, Just 2, Nothing, Just 3, Nothing]
+-- let e1 = filterJust sig0
+-- xs <- interpret e1
+-- -- xs == [1, 2, 3]
+-- @
+filterJust :: Event (Maybe a) -> Event a
+filterJust (E p) = E $ p >-> extract
  where
-  reaction cache' latch' val = do
-    xs <- atomically $ modifyTVar cache' (const val) >> readTVar latch'
-    forM_ xs $ \x -> emit x val
+  extract = do
+    v <- await
+    case v of
+      Just x  -> yield x >> extract
+      Nothing -> extract
 
-cancel :: Cell a -> IO ()
-cancel (Cell _ _ tid) = killThread tid
+-- | Past dependent folding.
+--
+-- @
+-- let counter = foldp (+) 0 $ repeat 1
+-- xs <- interpret counter
+-- xs == [1..]
+-- @
+foldp :: (a -> s -> s) -> s -> Event a -> Event s
+foldp f s0 (E from) = E $ from >-> go s0
+ where
+  go _state = do
+    v <- await
+    let newState = f v _state
+    yield newState
+    go newState
 
--- | Generate events when a cell gets changes.
-changes :: Cell a -> Event a
-changes (Cell _ ls _) = E $ do
-  evar <- liftIO newEVar
-  liftIO $ atomically $ modifyTVar ls (evar :)
-  unE $ events evar
+-- | Take the last element of events.
+-- Useful when you need to reduce elements from window.
+--
+-- @
+-- main = do
+--   timer0 <- every 100
+--   timerWindow <- every 1000
+--   let sig0 = throttle timer0 $ foldp (+) 0 $ repeat 1
+--   let latestW = last <$> window timerWindow sig0
+--   xs <- interpretM latestW
+--   print xs
+--   -- xs should be something like [1, 10, 20, 30, ..]
+-- @
+last :: Event a -> IO a
+last (E p) = do
+  res <- next p
+  case res of
+    Left  _           -> empty
+    Right (val', ps') -> go ps' val'
+ where
+  go ps val = do
+    res <- next ps
+    case res of
+      Left  _           -> return val
+      Right (val', ps') -> go ps' val'

@@ -17,13 +17,13 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
   exposed-modules:     Reactive.Tomato
-                     , Reactive.Tomato.Async
                      , Reactive.Tomato.Remote
-                     , Reactive.Tomato.Event
-  other-modules:       Reactive.Tomato.Signal
-                     , Reactive.Tomato.SF
-                     , Reactive.Tomato.EVar
                      , Reactive.Tomato.Time
+                     
+  other-modules:       Reactive.Tomato.Event
+                     , Reactive.Tomato.Signal
+                     , Reactive.Tomato.EVar
+                     
   build-depends:       base >= 4.7 && < 5
                      , pipes
                      , pipes-concurrency
@@ -40,7 +40,7 @@ test-suite reactive-tomato-tests
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             TestSuite.hs
-  other-modules:       Reactive.Tomato.Signal.Tests
+  other-modules:       Reactive.Tomato.Event.Tests
                      , Reactive.Tomato.EVar.Tests
                      , Reactive.Tomato.Time.Tests
                      , Reactive.Tomato.Remote.Tests

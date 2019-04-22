@@ -10,7 +10,6 @@ module Tomato.Colocation.Reactive.Types
   , newContext
   , newClient
   , clientRef
-  , SIO
   )
 where
 
@@ -51,6 +50,3 @@ newClient conn = C <$> newUnique <*> pure conn
 
 clientRef :: Client -> Bref
 clientRef = bref . show
-
--- For simplicity, we use only IO in embedded stack.
-type SIO = Signal IO

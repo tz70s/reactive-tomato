@@ -23,7 +23,7 @@ import qualified Data.Text.IO as Text
 import qualified Data.Text.Encoding as Text
 import qualified Network.WebSockets as WS
 
-clients :: SIO ControlE -> SIO [Client]
+clients :: Event ControlE -> Event [Client]
 clients = foldp go []
  where
   go (Add    c) xs = c : xs
@@ -32,14 +32,14 @@ clients = foldp go []
 type TagEvent = (Client, RealWorldEvent)
 type TagBS = (Client, BSL.ByteString)
 
-deserialize :: SIO DataE -> SIO TagEvent
+deserialize :: Event DataE -> Event TagEvent
 deserialize sigdata = filterJust $ do
   (DE client bs) <- sigdata
   case JSON.decode bs of
     Just realE -> return $ Just (client, realE)
     Nothing    -> return Nothing
 
-currView :: SIO TagEvent -> SIO CurrentView
+currView :: Event TagEvent -> Event CurrentView
 currView = foldp go newView where go (C uid _, realE) = updateView uid realE
 
 -- FIXME - buggy.
@@ -48,6 +48,7 @@ runNetwork Context {..} = void . forkIO $ do
   let nrClients = (clients . events) cvar
   -- TODO - we need to duplicate tagEvents for usage below?
   -- Otherwise, view and serde will consumer these by interleaving.
+  -- Make tag events as signal.
   let tagEvents = (deserialize . events) dvar
   let view      = liftA2 (,) tagEvents (currView tagEvents)
   react view $ \((client, _), view) -> void $ emitB (clientRef client) (BCast view) broker
@@ -57,7 +58,7 @@ interact' ctx@Context {..} client@(C uid conn) = do
   evar     <- newEVar
   commands <- eventsB (clientRef client) evar broker
   catch (repl commands) $ \(e :: WS.ConnectionException) -> do
-    emit (Remove client) cvar
+    emit cvar (Remove client)
     putStrLn "Close connection due to client side closed it."
 
  where
@@ -72,7 +73,7 @@ interact' ctx@Context {..} client@(C uid conn) = do
    where
     go = forever $ do
       msg <- WS.receiveData conn
-      emit (DE client msg) dvar
+      emit dvar (DE client msg)
 
   reaction (BCast view) = case encodeEach uid view of
     Just bs -> Text.putStrLn $ "Broadcast data : " <> Text.decodeUtf8 (BSL.toStrict bs)
@@ -83,7 +84,7 @@ handler :: Context -> WS.PendingConnection -> IO ()
 handler ctx@Context {..} pending = do
   conn   <- WS.acceptRequest pending
   client <- newClient conn
-  emit (Add client) cvar
+  emit cvar (Add client)
   putStrLn $ "New connection arrived with id : " <> show client
   WS.forkPingThread conn 30
   interact' ctx client

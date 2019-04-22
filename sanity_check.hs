@@ -13,31 +13,50 @@ module Main
 where
 
 import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Monad
 import System.IO
 
 import Reactive.Tomato as RT
+import Reactive.Tomato.Time
+import Reactive.Tomato.Remote
 
 main :: IO ()
-main = checkSharing
+main = checkRemote
+
+checkThrottling :: IO ()
+checkThrottling = do
+  timer <- every $ milli 100
+  let e0 = throttle timer $ foldp (+) 0 (RT.repeat 1)
+  let e1 = RT.take 10 e0
+  xs <- interpret e1
+  print xs
 
 checkRemote :: IO ()
 checkRemote = do
-  putStrLn "Sanity check for observing remote behavior"
-  timer <- every $ milli 10
-  let cnt0 = throttle timer $ foldp (+) 0 $ constant (1 :: Int)
-  runCluster defaultLocalPubSub $ do
-    sidcnt <- sid "cnt0"
-    RT.async $ spawn sidcnt cnt0
-    cntr <- remote (sidcnt :: Sid Int)
-    react cntr print
+  let cnt = foldp (+) 0 (RT.repeat (1 :: Int))
+  updateTimer <- every $ milli 10
+  let updates = throttle updateTimer cnt
+  cnt1 <- runCluster defaultLocalPubSub $ do
+    -- This is useful to eliminate explicit sid construction.
+    -- If there's a sid which will be reuse,
+    -- calling 'remote' will inference the sid phantom type as well as the signal type.
+    sid0 <- sid "cnt0"
+    -- In general, spawn will block the thread until the signal is terminated.
+    -- Therefore, the Cluster monad is instance of MonadFork that you can fork the spawn into separate threads.
+    spawn sid0 updates
+    remote sid0
+  xs <- interpret (RT.take 10 cnt1)
+  print xs
 
-checkSharing :: IO ()
-checkSharing = do
+{-
+checkEvent :: IO ()
+checkEvent = do
   hSetBuffering stdout LineBuffering
-  evar <- newEVar
-  forkIO $ forM_ [1 .. 10] $ \num -> emit num evar
-  let sig0 = events evar
-  let sig1 = sig0
-  let sig2 = sig0
-  react (sig1 `merge` sig2) print
+  let e1 = generate [1 .. 10]
+  signal <- newSignal 0 e1
+  let e2 = changes signal
+  let e3 = changes signal
+  let e4 = e2 `union` e3
+  race_ (react e4 print) (threadDelay 3000)
+-}

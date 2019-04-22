@@ -16,6 +16,6 @@ tests =
 testGetEventFromCallback :: Assertion
 testGetEventFromCallback = do
   evar <- newEVar
-  _    <- forkIO $ emit (1 :: Int) evar
-  let sig1 = events evar
-  react sig1 $ \num -> num @?= 1
+  _    <- forkIO $ emit evar (1 :: Int)
+  let e0 = events evar
+  react e0 $ \num -> num @?= 1

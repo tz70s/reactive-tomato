@@ -59,25 +59,25 @@ module Reactive.Tomato.Remote
   , defaultLocalPubSub
   , remote
   , spawn
+  , cancelSid
   )
 where
 
 import Codec.Serialise
 import Control.Concurrent
-import Control.Monad (void)
+import Control.Concurrent.STM
 import Control.Monad.Reader
 import Pipes
 
-import Reactive.Tomato.Async
 import Reactive.Tomato.EVar
-import Reactive.Tomato.Signal
+import Reactive.Tomato.Event
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Database.Redis as Redis
 
 -- | Reference identifier for signal, the type variable is useful for type inference.
-data Sid a = Sid { ids :: BS.ByteString, evar :: EVar a }
+data Sid a = Sid { ids :: BS.ByteString, evar :: EVar a, associate :: TVar [ThreadId] }
 
 -- | Construct a sid, in cluster monad.
 -- 
@@ -90,7 +90,8 @@ data Sid a = Sid { ids :: BS.ByteString, evar :: EVar a }
 sid :: MonadIO m => BS.ByteString -> Cluster m (Sid a)
 sid ids' = do
   evar' <- liftIO newEVar
-  return Sid { ids = ids', evar = evar' }
+  ass   <- liftIO $ newTVarIO []
+  return Sid { ids = ids', evar = evar', associate = ass }
 
 type Host = String
 type PortNum = Integer
@@ -104,9 +105,6 @@ newtype ClusterMethod = PubSubM Redis.Connection
 
 newtype Cluster m a = CT (ReaderT ClusterMethod m a)
   deriving (Functor, Applicative, Monad, MonadTrans, MonadIO, MonadReader ClusterMethod)
-
-instance MonadAsync m => MonadAsync (Cluster m) where
-  async (CT r) = CT (async r)
 
 -- | Build monadic computation from configuration, a.k.a ClusterInfo.
 --
@@ -143,14 +141,14 @@ defaultLocalPubSub = PubSub localhost defaultPortNum
 --   sig2 = fmap (+1) sig1
 --   react sig2 print
 -- @
-remote :: (MonadIO m, MonadIO m0, Serialise a) => Sid a -> Cluster m (Signal m0 a)
-remote (Sid sid' evar') = do
+remote :: (MonadIO m, Serialise a) => Sid a -> Cluster m (Event a)
+remote (Sid sid' evar' _) = do
   PubSubM conn <- ask
   _ <- liftIO . forkIO $ Redis.runRedis conn $ Redis.pubSub (Redis.subscribe [sid']) $ \msg -> do
     let deserde = deserialiseOrFail . BSL.fromStrict . Redis.msgMessage $ msg
     case deserde of
       Left  ex    -> putStrLn $ "Deserialization failure, cause: " <> show ex
-      Right value -> emit value evar'
+      Right value -> emit evar' value
     return mempty
   return $ events evar'
 
@@ -169,15 +167,20 @@ remote (Sid sid' evar') = do
 --   -- Note that this will block the thread.
 --   spawn cnt sig0
 -- @
-spawn :: (MonadIO m, Serialise a) => Sid a -> Signal m a -> Cluster m ()
-spawn sid' (Signal p) = do
+spawn :: (MonadIO m, Serialise a) => Sid a -> Event a -> Cluster m ()
+spawn (Sid chnl _ ass) (E es) = do
   PubSubM conn <- ask
-  lift $ runEffect $ p >-> _publish conn sid'
+  tid          <- liftIO $ forkIO $ runEffect $ es >-> go conn
+  liftIO $ atomically $ modifyTVar ass (tid :)
+  return ()
+ where
+  go conn = do
+    val <- await
+    let serde = BSL.toStrict . serialise $ val
+    _ <- liftIO $ Redis.runRedis conn $ Redis.publish chnl serde
+    go conn
 
-_publish :: (MonadIO m, Serialise a) => Redis.Connection -> Sid a -> Consumer a m ()
-_publish conn sid' = do
-  val <- await
-  let serde = BSL.toStrict . serialise $ val
-  liftIO $ Redis.runRedis conn $ go sid' serde
-  _publish conn sid'
-  where go (Sid chnl _) msg = void $ Redis.publish chnl msg
+cancelSid :: MonadIO m => Sid a -> Cluster m ()
+cancelSid (Sid _ _ ass) = do
+  xs <- liftIO . atomically $ readTVar ass
+  liftIO $ forM_ xs $ \tid -> killThread tid

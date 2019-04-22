@@ -17,11 +17,10 @@ module Reactive.Tomato.EVar
 where
 
 import Control.Concurrent.STM
-import Control.Monad
 import Data.String
 import Pipes hiding (await)
 
-import Reactive.Tomato.Signal
+import Reactive.Tomato.Event
 
 import qualified Data.Map as Map
 import qualified Pipes.Concurrent as PC
@@ -39,10 +38,9 @@ import qualified Pipes.Concurrent as PC
 -- main = do
 --   evar <- newEVar
 --   forM [1..5] $ \num -> forkIO $ emit num evar
---   -- We can get signal for free now.
---   let sig1 = events evar
---   let sig2 = foldp (+) 0 sig1
---   react sig2 print
+--   -- We can get event for free now.
+--   let e1 = events evar
+--   react e1 print
 -- @
 --
 -- == Notice
@@ -58,7 +56,7 @@ newtype EVar a = EVar (PC.Output a, PC.Input a, STM ())
 
 -- | Create a new EVar.
 -- 
--- Note that the lifecycle of EVar should be greater than deriving Signal.
+-- Note that the lifecycle of EVar should be greater than deriving Event.
 -- Once the EVar gets garbage collected, the deriving signal will be terminated as well.
 newEVar :: IO (EVar a)
 newEVar = do
@@ -66,19 +64,19 @@ newEVar = do
   return $ EVar (output, input, seal)
 
 -- | Emit value to EVar, typically in a callback function.
-emit :: a -> EVar a -> IO ()
-emit val (EVar (output, _, _)) = runEffect $ yield val >-> PC.toOutput output
+emit :: EVar a -> a -> IO ()
+emit (EVar (output, _, _)) val = runEffect $ yield val >-> PC.toOutput output
 
--- | Convert EVar to Signal.
+-- | Convert EVar to Event.
 --
 -- Problem: if output is terminated, the input will be terminated as well.
 --
-events :: MonadIO m => EVar a -> Signal m a
-events (EVar (_, input, _)) = Signal $ PC.fromInput input
+events :: EVar a -> Event a
+events (EVar (_, input, _)) = E $ PC.fromInput input
 
--- | React Signal to perform side effects.
-react :: MonadIO m => Signal m a -> (a -> IO ()) -> m ()
-react (Signal p) f = runEffect $ for p $ \v -> liftIO $ f v
+-- | React Event to perform side effects.
+react :: Event a -> (a -> IO ()) -> IO ()
+react (E es) f = runEffect $ for es $ \v -> liftIO $ f v
 
 type Map = Map.Map
 
@@ -110,7 +108,7 @@ fromList xs = BVar <$> newTVarIO (Map.fromList xs)
 -- | A combination of 'register' and 'derefBVar'.
 -- In many case, these commands can be combined together,
 -- and we encourage to use this first.
-eventsB :: MonadIO m => Bref -> EVar a -> BVar a -> IO (Signal m a)
+eventsB :: Bref -> EVar a -> BVar a -> IO (Event a)
 eventsB k v bvar = do
   register k v bvar
   return (events v)
@@ -120,15 +118,15 @@ emitB :: Bref -> a -> BVar a -> IO (Maybe a)
 emitB k val (BVar tvar) = do
   m <- readTVarIO tvar
   case Map.lookup k m of
-    Just evar -> emit val evar >> return (Just val)
+    Just evar -> emit evar val >> return (Just val)
     Nothing   -> return Nothing
 
 -- | Register an EVar with reference value to BVar.
 register :: Bref -> EVar a -> BVar a -> IO ()
 register k v (BVar tvar) = atomically $ modifyTVar tvar (Map.insert k v)
 
--- | Generate Signal from BVar with a specific Bref.
-derefBVar :: MonadIO m => Bref -> BVar a -> IO (Maybe (Signal m a))
+-- | Generate Event from BVar with a specific Bref.
+derefBVar :: Bref -> BVar a -> IO (Maybe (Event a))
 derefBVar k (BVar tvar) = do
   m <- readTVarIO tvar
   return (events <$> Map.lookup k m)
