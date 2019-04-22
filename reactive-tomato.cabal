@@ -62,3 +62,30 @@ executable time
   build-depends:       base >= 4.7 && < 5
                      , reactive-tomato
   ghc-options:         -O2 -threaded +RTS -N -RTS
+
+executable benchmark-event
+  hs-source-dirs:      benchmark/event
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , reactive-tomato
+                     , criterion
+  ghc-options:         -O2 -threaded +RTS -N -T -RTS
+
+executable benchmark-signal
+  hs-source-dirs:      benchmark/signal
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , reactive-tomato
+                     , criterion
+  ghc-options:         -O2 -threaded +RTS -N -T -RTS
+
+executable benchmark-remote
+  hs-source-dirs:      benchmark/remote
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , reactive-tomato
+                     , criterion
+  ghc-options:         -O2 -threaded +RTS -N -T -RTS

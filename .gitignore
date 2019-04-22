@@ -7,5 +7,9 @@
 *.svg
 *.pdf
 
+# Criterion
+*.html
+*.csv
+
 # Others
 .DS_Store

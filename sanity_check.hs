@@ -42,8 +42,7 @@ checkRemote = do
     -- If there's a sid which will be reuse,
     -- calling 'remote' will inference the sid phantom type as well as the signal type.
     sid0 <- sid "cnt0"
-    -- In general, spawn will block the thread until the signal is terminated.
-    -- Therefore, the Cluster monad is instance of MonadFork that you can fork the spawn into separate threads.
+    -- Spawn is non-blocking and you can't.
     spawn sid0 updates
     remote sid0
   xs <- interpret (RT.take 10 cnt1)

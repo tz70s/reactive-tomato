@@ -42,13 +42,9 @@ deserialize sigdata = filterJust $ do
 currView :: Event TagEvent -> Event CurrentView
 currView = foldp go newView where go (C uid _, realE) = updateView uid realE
 
--- FIXME - buggy.
 runNetwork :: Context -> IO ()
 runNetwork Context {..} = void . forkIO $ do
-  let nrClients = (clients . events) cvar
-  -- TODO - we need to duplicate tagEvents for usage below?
-  -- Otherwise, view and serde will consumer these by interleaving.
-  -- Make tag events as signal.
+  let clientSignal = newSignal [] $ (clients . events) cvar
   let tagEvents = (deserialize . events) dvar
   let view      = liftA2 (,) tagEvents (currView tagEvents)
   react view $ \((client, _), view) -> void $ emitB (clientRef client) (BCast view) broker

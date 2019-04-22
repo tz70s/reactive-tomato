@@ -11,7 +11,6 @@ where
 import Control.Concurrent (forkIO, ThreadId, killThread)
 import Control.Concurrent.STM
 import Control.Monad (forM_)
-import Pipes
 
 import Reactive.Tomato.EVar
 import Reactive.Tomato.Event
@@ -37,8 +36,8 @@ cancel :: Signal a -> IO ()
 cancel (Signal _ _ tid') = killThread tid'
 
 -- | Generate events when a cell gets changes.
-changes :: Signal a -> Event a
-changes (Signal _ ls _) = E $ do
-  evar <- liftIO newEVar
-  liftIO $ atomically $ modifyTVar ls (evar :)
-  unE $ events evar
+changes :: Signal a -> IO (Event a)
+changes (Signal _ ls _) = do
+  evar <- newEVar
+  atomically $ modifyTVar ls (evar :)
+  return (events evar)
