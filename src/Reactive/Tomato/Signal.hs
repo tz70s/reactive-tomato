@@ -31,9 +31,11 @@ newSignal initial pump' = do
   reaction cache' latch' val = do
     xs <- atomically $ modifyTVar cache' (const val) >> readTVar latch'
     forM_ xs $ \x -> emit x val
+{-# INLINABLE newSignal #-}
 
 cancel :: Signal a -> IO ()
 cancel (Signal _ _ tid') = killThread tid'
+{-# INLINABLE cancel #-}
 
 -- | Generate events when a cell gets changes.
 changes :: Signal a -> IO (Event a)
@@ -41,3 +43,4 @@ changes (Signal _ ls _) = do
   evar <- newEVar
   atomically $ modifyTVar ls (evar :)
   return (events evar)
+{-# INLINABLE changes #-}

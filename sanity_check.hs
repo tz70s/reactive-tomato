@@ -22,7 +22,7 @@ import Reactive.Tomato.Time
 import Reactive.Tomato.Remote
 
 main :: IO ()
-main = checkRemote
+main = checkEvent
 
 checkThrottling :: IO ()
 checkThrottling = do
@@ -37,7 +37,7 @@ checkRemote = do
   let cnt = foldp (+) 0 (RT.repeat (1 :: Int))
   updateTimer <- every $ milli 10
   let updates = throttle updateTimer cnt
-  cnt1 <- runCluster defaultLocalPubSub $ do
+  cnt1 <- runCluster defaultLocal $ do
     -- This is useful to eliminate explicit sid construction.
     -- If there's a sid which will be reuse,
     -- calling 'remote' will inference the sid phantom type as well as the signal type.
@@ -45,17 +45,15 @@ checkRemote = do
     -- Spawn is non-blocking and you can't.
     spawn sid0 updates
     remote sid0
-  xs <- interpret (RT.take 10 cnt1)
-  print xs
+  event <- changes cnt1
+  react (filterJust event) print
 
-{-
 checkEvent :: IO ()
 checkEvent = do
   hSetBuffering stdout LineBuffering
-  let e1 = generate [1 .. 10]
+  let e1 = generate [1 ..]
   signal <- newSignal 0 e1
-  let e2 = changes signal
-  let e3 = changes signal
+  e2     <- changes signal
+  e3     <- changes signal
   let e4 = e2 `union` e3
-  race_ (react e4 print) (threadDelay 3000)
--}
+  react (RT.take 10 e4) print

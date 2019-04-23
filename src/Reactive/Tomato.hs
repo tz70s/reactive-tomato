@@ -20,19 +20,9 @@ module Reactive.Tomato
   , changes
 
     -- * EVar abstractions.
-  , EVar
-  , newEVar
-  , emit
-  , events
-  , react
-  , Bref
-  , bref
-  , BVar
-  , newBVar
-  , emitB
-  , register
-  , fromList
-  , eventsB
+  , module Reactive.Tomato.EVar
+    -- * BVar abstractions.
+  , module Reactive.Tomato.BVar
   )
 where
 
@@ -40,4 +30,5 @@ import Prelude hiding (filter, take, last, repeat)
 
 import Reactive.Tomato.Event
 import Reactive.Tomato.EVar
+import Reactive.Tomato.BVar
 import Reactive.Tomato.Signal

@@ -78,6 +78,7 @@ every intvl = do
 -- @
 start :: Timer -> Event ()
 start (T (sig, _)) = sig
+{-# INLINABLE start #-}
 
 -- | Throttle signal propagation speed in milliseconds.
 --
@@ -86,6 +87,7 @@ start (T (sig, _)) = sig
 -- @
 throttle :: Timer -> Event a -> Event a
 throttle timer = liftA2 (flip const) (start timer)
+{-# INLINABLE throttle #-}
 
 -- | Snapshot the value of specific time point.
 -- 

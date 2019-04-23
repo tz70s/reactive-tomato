@@ -88,6 +88,7 @@ instance Alternative Event where
 -- | Infinite sequence of event occurrences.
 repeat :: a -> Event a
 repeat = generate . Prelude.repeat
+{-# INLINABLE repeat #-}
 
 -- | Generate events from a list, which can be finite or infinite.
 -- 
@@ -101,12 +102,14 @@ repeat = generate . Prelude.repeat
 -- @
 generate :: [a] -> Event a
 generate = E . go where go = foldr ((>>) . yield) mempty
+{-# INLINABLE generate #-}
 
 -- | Interpret 'Event' into list within monad context, useful to inspecting events transformation.
 --
 -- Note that this is intentionally used in testing.
 interpret :: Event a -> IO [a]
 interpret (E es) = PP.toListM es
+{-# INLINABLE interpret #-}
 
 -- | Merge two 'Event' by interleaving event occurrences.
 -- 
@@ -129,6 +132,7 @@ interpret (E es) = PP.toListM es
 -- the only guarantee is we preserved the FIFO ordering in each events.
 union :: Event a -> Event a -> Event a
 union s1 s2 = unionAll [s1, s2]
+{-# INLINABLE union #-}
 
 -- | Merge list of events by interleaving event occurrences.
 --
@@ -148,6 +152,7 @@ unionAll xs = E $ do
 -- | Take bounded elements from events, then terminate it.
 take :: Int -> Event a -> Event a
 take times (E es) = E $ es >-> PP.take times
+{-# INLINABLE take #-}
 
 -- | Filter elements with predicate function.
 --
@@ -158,6 +163,7 @@ take times (E es) = E $ es >-> PP.take times
 -- @
 filter :: (a -> Bool) -> Event a -> Event a
 filter f (E p) = E $ p >-> PP.filter f
+{-# INLINABLE filter #-}
 
 -- | Extract maybe elements into only just value.
 --
@@ -175,6 +181,7 @@ filterJust (E p) = E $ p >-> extract
     case v of
       Just x  -> yield x >> extract
       Nothing -> extract
+{-# INLINABLE filterJust #-}
 
 -- | Past dependent folding.
 --
@@ -191,6 +198,7 @@ foldp f s0 (E from) = E $ from >-> go s0
     let newState = f v _state
     yield newState
     go newState
+{-# INLINABLE foldp #-}
 
 -- | Take the last element of events.
 -- Useful when you need to reduce elements from window.
@@ -217,3 +225,4 @@ last (E p) = do
     case res of
       Left  _           -> return val
       Right (val', ps') -> go ps' val'
+{-# INLINABLE last #-}

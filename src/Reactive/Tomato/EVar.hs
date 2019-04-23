@@ -4,25 +4,14 @@ module Reactive.Tomato.EVar
   , emit
   , events
   , react
-  , Bref
-  , bref
-  , BVar
-  , newBVar
-  , eventsB
-  , emitB
-  , register
-  , fromList
-  , derefBVar
   )
 where
 
 import Control.Concurrent.STM
-import Data.String
 import Pipes hiding (await)
 
 import Reactive.Tomato.Event
 
-import qualified Data.Map as Map
 import qualified Pipes.Concurrent as PC
 
 -- | An event var for composition from callbacks.
@@ -62,10 +51,12 @@ newEVar :: IO (EVar a)
 newEVar = do
   (output, input, seal) <- PC.spawn' PC.unbounded
   return $ EVar (output, input, seal)
+{-# INLINABLE newEVar #-}
 
 -- | Emit value to EVar, typically in a callback function.
 emit :: EVar a -> a -> IO ()
 emit (EVar (output, _, _)) val = runEffect $ yield val >-> PC.toOutput output
+{-# INLINABLE emit #-}
 
 -- | Convert EVar to Event.
 --
@@ -73,60 +64,9 @@ emit (EVar (output, _, _)) val = runEffect $ yield val >-> PC.toOutput output
 --
 events :: EVar a -> Event a
 events (EVar (_, input, _)) = E $ PC.fromInput input
+{-# INLINABLE events #-}
 
 -- | React Event to perform side effects.
 react :: Event a -> (a -> IO ()) -> IO ()
 react (E es) f = runEffect $ for es $ \v -> liftIO $ f v
-
-type Map = Map.Map
-
--- | Reference value for indexing BVar.
--- Similar to topic in topic-based publish-subscribe system.
-newtype Bref = Bref String deriving (Eq, Ord, Show)
-
-instance IsString Bref where
-  fromString = Bref
-
-bref :: String -> Bref
-bref = Bref
-
--- | Abstraction for simple homogeneous collection of EVars,
--- in other words, all EVar in this collection should have same type.
---
--- This is useful when you need to perform publish/subscribe patterns
--- in Haskell thread-per-connection model.
-newtype BVar a = BVar (TVar (Map Bref (EVar a)))
-
--- | Create a BVar which contains empty evars.
-newBVar :: IO (BVar a)
-newBVar = BVar <$> newTVarIO Map.empty
-
--- | Consruct BVar from list of Bref and EVar pairs.
-fromList :: [(Bref, EVar a)] -> IO (BVar a)
-fromList xs = BVar <$> newTVarIO (Map.fromList xs)
-
--- | A combination of 'register' and 'derefBVar'.
--- In many case, these commands can be combined together,
--- and we encourage to use this first.
-eventsB :: Bref -> EVar a -> BVar a -> IO (Event a)
-eventsB k v bvar = do
-  register k v bvar
-  return (events v)
-
--- | Emit a value to BVar.
-emitB :: Bref -> a -> BVar a -> IO (Maybe a)
-emitB k val (BVar tvar) = do
-  m <- readTVarIO tvar
-  case Map.lookup k m of
-    Just evar -> emit evar val >> return (Just val)
-    Nothing   -> return Nothing
-
--- | Register an EVar with reference value to BVar.
-register :: Bref -> EVar a -> BVar a -> IO ()
-register k v (BVar tvar) = atomically $ modifyTVar tvar (Map.insert k v)
-
--- | Generate Event from BVar with a specific Bref.
-derefBVar :: Bref -> BVar a -> IO (Maybe (Event a))
-derefBVar k (BVar tvar) = do
-  m <- readTVarIO tvar
-  return (events <$> Map.lookup k m)
+{-# INLINABLE react #-}

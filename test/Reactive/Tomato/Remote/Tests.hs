@@ -21,7 +21,7 @@ tests = testGroup
 
 testClusterMonadInit :: Assertion
 testClusterMonadInit = do
-  num <- runCluster defaultLocalPubSub $ return (5 :: Int)
+  num <- runCluster defaultLocal $ return (5 :: Int)
   num @?= 5
 
 testStatefulConter :: Assertion
@@ -29,7 +29,7 @@ testStatefulConter = do
   let cnt = foldp (+) 0 (RT.repeat (1 :: Int))
   updateTimer <- every $ milli 10
   let updates = throttle updateTimer cnt
-  cnt1 <- runCluster defaultLocalPubSub $ do
+  cnt1 <- runCluster defaultLocal $ do
     -- This is useful to eliminate explicit sid construction.
     -- If there's a sid which will be reuse,
     -- calling 'remote' will inference the sid phantom type as well as the signal type.
@@ -37,6 +37,6 @@ testStatefulConter = do
     -- Both spawn and remote will fork new threads for asynchronously driving event propagation.
     -- You can explicitly cancel sid by cancelSid, however, it'll atomatically if events terminate.
     _    <- spawn sid0 updates
-    remote sid0
+    filterJust <$> remote sid0
   xs <- interpret (RT.take 10 cnt1)
   xs @?= [1 .. 10]
