@@ -42,6 +42,7 @@ test-suite reactive-tomato-tests
   hs-source-dirs:      test
   main-is:             TestSuite.hs
   other-modules:       Reactive.Tomato.Event.Tests
+                     , Reactive.Tomato.Signal.Tests
                      , Reactive.Tomato.EVar.Tests
                      , Reactive.Tomato.Time.Tests
                      , Reactive.Tomato.Remote.Tests

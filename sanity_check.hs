@@ -51,7 +51,7 @@ checkRemote = do
 checkEvent :: IO ()
 checkEvent = do
   hSetBuffering stdout LineBuffering
-  let e1 = generate [1 ..]
+  let e1 = generate [1 .. 10]
   signal <- newSignal 0 e1
   e2     <- changes signal
   e3     <- changes signal
