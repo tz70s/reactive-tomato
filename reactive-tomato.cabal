@@ -54,15 +54,7 @@ test-suite reactive-tomato-tests
                      , mtl
                      , reactive-tomato
                      , pipes
-  ghc-options:         -Wall -threaded +RTS -N -RTS
-
-executable time
-  hs-source-dirs:      benchmark/time
-  main-is:             Time.hs
-  default-language:    Haskell2010
-  build-depends:       base >= 4.7 && < 5
-                     , reactive-tomato
-  ghc-options:         -O2 -threaded +RTS -N -RTS
+  ghc-options:         -Wall
 
 executable benchmark-event
   hs-source-dirs:      benchmark/event
@@ -71,7 +63,7 @@ executable benchmark-event
   build-depends:       base >= 4.7 && < 5
                      , reactive-tomato
                      , criterion
-  ghc-options:         -O2 -threaded +RTS -N -T -RTS
+  ghc-options:         -O2 -threaded -rtsopts
 
 executable benchmark-signal
   hs-source-dirs:      benchmark/signal
@@ -80,7 +72,7 @@ executable benchmark-signal
   build-depends:       base >= 4.7 && < 5
                      , reactive-tomato
                      , criterion
-  ghc-options:         -O2 -threaded +RTS -N -T -RTS
+  ghc-options:         -O2 -threaded -rtsopts
 
 executable benchmark-remote
   hs-source-dirs:      benchmark/remote
@@ -89,7 +81,7 @@ executable benchmark-remote
   build-depends:       base >= 4.7 && < 5
                      , reactive-tomato
                      , criterion
-  ghc-options:         -O2 -threaded +RTS -N -T -RTS
+  ghc-options:         -O2 -threaded -rtsopts
 
 executable benchmark-evar
   hs-source-dirs:      benchmark/evar
@@ -99,4 +91,4 @@ executable benchmark-evar
                      , reactive-tomato
                      , criterion
                      , async
-  ghc-options:         -O2 -threaded -eventlog -rtsopts
+  ghc-options:         -O2 -threaded -rtsopts

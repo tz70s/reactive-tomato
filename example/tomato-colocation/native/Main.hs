@@ -34,7 +34,6 @@ interact' client = do
   res <- runExceptT (process client)
   case res of
     Left e -> do
-      liftIO $ putStrLn $ "Connection close, remove client " <> show client <> "."
       -- Close out and remove client connection if any connection exception occurred.
       env <- ask
       liftIO $ atomically $ modifyTVar env $ removeClient client
@@ -44,9 +43,8 @@ process :: Client -> ExceptT WS.ConnectionException AppM ()
 process (C uid conn) = forever $ do
   msg <- rethrow $ WS.receiveData conn
   case JSON.decode msg of
-    Just m -> update m >>= (rethrow . broadcast)
-    Nothing ->
-      liftIO $ putStrLn "Wrong real world event format, currently simply abort this message."
+    Just m  -> update m >>= (rethrow . broadcast)
+    Nothing -> return ()
  where
   update realE = do
     env <- ask
@@ -68,7 +66,6 @@ handler pending = do
   env    <- ask
   client <- liftIO $ newClient conn
   liftIO $ atomically $ modifyTVar env $ addClient client
-  liftIO $ putStrLn $ "New connection arrived with id : " <> show client
   -- This is for some browser timeout settings (i.e. 60 seconds) to avoid leaking connection.
   liftIO $ WS.forkPingThread conn 30
   interact' client

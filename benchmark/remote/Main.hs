@@ -56,4 +56,4 @@ main :: IO ()
 main = do
   evt    <- prepareEvent
   evtSig <- prepareSignal
-  defaultMain [benchEventLatency evt, benchSignalLatency evtSig]
+  defaultMain [benchEventLatency evt]

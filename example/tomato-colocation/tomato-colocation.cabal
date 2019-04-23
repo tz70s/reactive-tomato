@@ -34,6 +34,7 @@ executable colocation-native
                      , mtl
                      , stm
                      , tomato-colocation
+  ghc-options:         -O2 -threaded -rtsopts
 
 executable colocation-reactive
   hs-source-dirs:      reactive
@@ -49,6 +50,7 @@ executable colocation-reactive
                      , reactive-tomato
                      , tomato-colocation
                      , mtl
+  ghc-options:         -O2 -threaded -rtsopts
 
 test-suite tomato-colocation-tests
   type:                exitcode-stdio-1.0

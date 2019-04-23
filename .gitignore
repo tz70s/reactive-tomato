@@ -6,6 +6,7 @@
 *.ps
 *.svg
 *.pdf
+*.eventlog
 
 # Criterion
 *.html
@@ -13,3 +14,6 @@
 
 # Others
 .DS_Store
+
+# Test data
+*.txt
