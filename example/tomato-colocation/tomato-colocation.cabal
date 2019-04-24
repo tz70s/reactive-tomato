@@ -66,3 +66,19 @@ test-suite tomato-colocation-tests
                      , containers
                      , tomato-colocation
   ghc-options:         -Wall -threaded
+
+executable colocation-e2e-tests
+  hs-source-dirs:      e2e
+  main-is:             TestSuite.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , text
+                     , bytestring
+                     , tasty
+                     , tasty-hunit
+                     , containers
+                     , tomato-colocation
+                     , websockets
+                     , aeson
+                     , async
+  ghc-options:         -Wall -threaded

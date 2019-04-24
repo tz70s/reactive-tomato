@@ -22,7 +22,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import qualified Network.WebSockets as WS
 
-rethrow :: IO a -> ExceptT WS.ConnectionException AppM a
+rethrow :: IO a -> ExceptT SomeException AppM a
 rethrow action = do
   res <- liftIO $ try action
   case res of
@@ -39,7 +39,7 @@ interact' client = do
       liftIO $ atomically $ modifyTVar env $ removeClient client
     Right _ -> interact' client
 
-process :: Client -> ExceptT WS.ConnectionException AppM ()
+process :: Client -> ExceptT SomeException AppM ()
 process (C uid conn) = forever $ do
   msg <- rethrow $ WS.receiveData conn
   case JSON.decode msg of

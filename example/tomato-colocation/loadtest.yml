@@ -1,9 +1,9 @@
 config:
   target: "ws://127.0.0.1:9160"
   phases:
-    - duration: 120
-      arrivalRate: 1000
-      rampTo: 1000
+    - duration: 30
+      arrivalRate: 100
+      rampTo: 100
       name: "Constant load generating"
 scenarios:
   - engine: "ws"

@@ -44,7 +44,7 @@ currView = foldp go newView where go (C uid _, realE) = updateView uid realE
 
 runNetwork :: Context -> IO ()
 runNetwork Context {..} = void . forkIO $ do
-  let clientSignal = newSignal [] $ (clients . events) cvar
+  clientSignal <- newSignal [] $ (clients . events) cvar
   let tagEvents = (deserialize . events) dvar
   let view      = liftA2 (,) tagEvents (currView tagEvents)
   react view $ \((client, _), view) -> void $ emitB (clientRef client) (BCast view) broker
@@ -53,7 +53,7 @@ interact' :: Context -> Client -> IO ()
 interact' ctx@Context {..} client@(C uid conn) = do
   evar     <- newEVar
   commands <- eventsB (clientRef client) evar broker
-  catch (repl commands) $ \(e :: WS.ConnectionException) -> do
+  catch (repl commands) $ \(e :: SomeException) -> do
     emit cvar (Remove client)
     putStrLn "Close connection due to client side closed it."
 
