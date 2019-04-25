@@ -55,6 +55,7 @@ test-suite reactive-tomato-tests
                      , mtl
                      , reactive-tomato
                      , pipes
+                     , async
   ghc-options:         -Wall
 
 executable benchmark-event

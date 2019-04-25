@@ -2,44 +2,52 @@
 
 module Reactive.Tomato.Signal
   ( Signal(..)
-  , newSignal
-  , cancel
+  , signal
+  , sample
   , changes
   )
 where
 
-import Control.Concurrent (forkIO, ThreadId, killThread)
-import Control.Concurrent.STM
+import Control.Concurrent.Async hiding (cancel)
+import Control.Monad (forever, when)
 
 import Pipes
-import Reactive.Tomato.EVar
 import Reactive.Tomato.Event
 
+import qualified Pipes.Prelude as PP
+import qualified Pipes.Concurrent as PC
+
 -- | Now idea to close the thread id properly.
-data Signal a = Signal { cache :: TVar a, tid :: ThreadId }
+data Signal a = S { initial :: a, unS :: Producer a IO () }
 
--- Thought: we can react to pump, change tha cache value and propagate to latches.
--- Maybe we can return IO (Signal a), fork a thread and use it to generate events.
--- ThreadId will be cached then we can kill it when we need?
-newSignal :: a -> Event a -> IO (Signal a)
-newSignal initial pump' = do
-  cache' <- newTVarIO initial
-  tid'   <- forkIO $ react pump' (reaction cache')
-  return (Signal cache' tid')
-  where reaction cache' val = atomically $ modifyTVar cache' (const val)
-{-# INLINABLE newSignal #-}
+signal :: a -> Event a -> IO (Signal a)
+signal a (E es) = do
+  (output, input) <- PC.spawn $ PC.latest a
+  _               <- async $ runEffect (es >-> PC.toOutput output)
+  return (S a $ PC.fromInput input)
 
-cancel :: Signal a -> IO ()
-cancel (Signal _ tid') = killThread tid'
-{-# INLINABLE cancel #-}
+sample :: Signal a -> Event (a -> b) -> Event b
+sample (S _ ss) ef = ef <*> E ss
 
--- | Generate events when a cell gets changes.
-changes :: Signal a -> IO (Event a)
-changes (Signal cac _) = do
-  let
-    go = do
-      val <- liftIO . atomically $ readTVar cac
-      yield val
-      go
-  return (E go)
-{-# INLINABLE changes #-}
+changes :: Eq a => Signal a -> Event a
+changes (S val ss) = E (ss >-> check val)
+ where
+  check curr = do
+    val <- await
+    if val == curr then check curr else yield val >> check val
+
+instance Functor Signal where
+  fmap f (S s0 ss) = S (f s0) $ ss >-> PP.map f
+
+instance Applicative Signal where
+  pure a = S a (forever $ yield a)
+
+  (S f0 fs) <*> (S s0 ss) = S (f0 s0) $ go fs ss
+   where
+    go _fs _xs = do
+      fe <- lift $ next _fs
+      xe <- lift $ next _xs
+      case (fe, xe) of
+        (Left _        , _             ) -> pure ()
+        (_             , Left _        ) -> pure ()
+        (Right (f, fs'), Right (x, xs')) -> yield (f x) >> go fs' xs'

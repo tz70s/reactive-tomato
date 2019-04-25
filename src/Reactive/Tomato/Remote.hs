@@ -192,6 +192,7 @@ instance Remote Event where
       _ <- liftIO $ Redis.runRedis conn $ Redis.publish chnl serde
       go conn
 
+{-
 instance Remote Signal where
   remote (Sid sid' evar' _) = do
     ClusterM conn <- ask
@@ -222,3 +223,4 @@ instance Remote Signal where
       let serde = BSL.toStrict . serialise $ val
       _ <- liftIO $ Redis.runRedis conn $ Redis.set chnl serde
       go conn
+-}

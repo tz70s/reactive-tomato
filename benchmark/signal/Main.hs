@@ -13,8 +13,8 @@ latencySignal evt num = interpret $ RT.take num evt
 
 prepareSignal :: IO (Signal Int)
 prepareSignal = do
-  let counter = foldp (+) 0 (RT.repeat 1)
-  newSignal (-1) counter
+  let counter = generate [1 .. 10]
+  signal (-1) counter
 
 benchSignalLatency :: Event Int -> Benchmark
 benchSignalLatency evt = bgroup
@@ -29,5 +29,5 @@ benchSignalLatency evt = bgroup
 main :: IO ()
 main = do
   sig0 <- prepareSignal
-  evt  <- changes sig0
+  let evt = sample sig0 (RT.repeat id)
   defaultMain [benchSignalLatency evt]

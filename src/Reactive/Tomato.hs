@@ -14,10 +14,7 @@ module Reactive.Tomato
   , take
 
   -- * Signal abstractions.
-  , Signal
-  , newSignal
-  , cancel
-  , changes
+  , module Reactive.Tomato.Signal
 
     -- * EVar abstractions.
   , module Reactive.Tomato.EVar

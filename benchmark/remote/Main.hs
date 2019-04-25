@@ -22,6 +22,7 @@ prepareEvent = do
     _    <- spawn sid0 cnt
     filterJust <$> remote sid0
 
+{-
 prepareSignal :: IO (Event Int)
 prepareSignal = do
   let cnt = foldp (+) 0 (RT.repeat (1 :: Int))
@@ -31,6 +32,7 @@ prepareSignal = do
     remote sid0
   events <- changes signal
   return (filterJust events)
+-}
 
 benchEventLatency :: Event Int -> Benchmark
 benchEventLatency evt = bgroup
@@ -54,6 +56,5 @@ benchSignalLatency evt = bgroup
 
 main :: IO ()
 main = do
-  evt    <- prepareEvent
-  evtSig <- prepareSignal
+  evt <- prepareEvent
   defaultMain [benchEventLatency evt]

@@ -44,7 +44,7 @@ currView = foldp go newView where go (C uid _, realE) = updateView uid realE
 
 runNetwork :: Context -> IO ()
 runNetwork Context {..} = void . forkIO $ do
-  clientSignal <- newSignal [] $ (clients . events) cvar
+  clientSignal <- signal [] $ (clients . events) cvar
   let tagEvents = (deserialize . events) dvar
   let view      = liftA2 (,) tagEvents (currView tagEvents)
   react view $ \((client, _), view) -> void $ emitB (clientRef client) (BCast view) broker
