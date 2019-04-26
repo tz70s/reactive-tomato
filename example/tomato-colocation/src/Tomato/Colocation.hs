@@ -47,6 +47,9 @@ instance FromJSON EmergencyLevel
 
 newtype CurrentView = CurrView (Map.Map Unique RealWorldEvent) deriving (Eq, Ord)
 
+instance Show CurrentView where
+  show (CurrView map') = show $ snd <$> Map.toList map'
+
 newView :: CurrentView
 newView = CurrView Map.empty
 

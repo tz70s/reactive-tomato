@@ -1,12 +1,11 @@
 config:
   target: "ws://127.0.0.1:9160"
   phases:
-    - duration: 30
-      arrivalRate: 100
-      rampTo: 100
+    - duration: 300
+      arrivalRate: 30
+      rampTo: 300
       name: "Constant load generating"
 scenarios:
   - engine: "ws"
     flow:
       - send: '{"location" : [1, 1],"speed" : [1, 1], "device" : "benchmark", "name": "benchmark0"}'
-      - think: 60

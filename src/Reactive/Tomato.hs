@@ -10,6 +10,8 @@ module Reactive.Tomato
   , unionAll
   , repeat
   , generate
+  , schedule
+  , duplicate
   , interpret
   , take
 

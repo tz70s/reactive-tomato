@@ -50,6 +50,7 @@ executable colocation-reactive
                      , reactive-tomato
                      , tomato-colocation
                      , mtl
+                     , stm
   ghc-options:         -O2 -threaded -rtsopts
 
 test-suite tomato-colocation-tests

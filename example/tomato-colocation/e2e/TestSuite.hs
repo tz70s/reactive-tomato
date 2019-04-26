@@ -56,6 +56,6 @@ testConcMany :: Assertion
 testConcMany = do
   let bs num = encode $ RealWorldEvent (num, 1) (1.0, 1.0) "test" ("test-" <> Text.pack (show num))
   let run = runClientLocal . singleInteract
-  xs <- forConcurrently [1 .. 50] $ \num -> run (bs num)
-  length xs @?= 50
+  xs <- forConcurrently [1 .. 10] $ \num -> run (bs num)
+  length xs @?= 10
   forM_ xs $ \text -> Text.putStrLn text

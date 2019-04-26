@@ -9,6 +9,8 @@ module Reactive.Tomato.Event
   , unionAll
   , last
   , generate
+  , schedule
+  , duplicate
   , Reactive.Tomato.Event.repeat
   , interpret
   , take
@@ -17,6 +19,7 @@ where
 
 import Control.Applicative
 import Control.Concurrent.Async hiding (cancel)
+import Control.Concurrent.STM
 import Control.Monad (forM)
 import Pipes
 import Prelude hiding (filter, take, last)
@@ -226,3 +229,30 @@ last (E p) = do
       Left  _           -> return val
       Right (val', ps') -> go ps' val'
 {-# INLINABLE last #-}
+
+schedule :: Event a -> Event a
+schedule (E es) = E $ do
+  (output, input) <- lift $ PC.spawn PC.unbounded
+  as              <- lift . async . runEffect $ es >-> PC.toOutput output
+  PC.fromInput input
+  lift $ wait as
+
+duplicate :: Event a -> IO (Event a, Event a)
+duplicate (E es) = do
+  chan <- newBroadcastTChanIO
+  let
+    producer = do
+      val <- await
+      lift . atomically $ writeTChan chan val
+      producer
+  _ <- async . runEffect $ es >-> producer
+  let
+    consumer rchan = do
+      val <- lift . atomically $ readTChan rchan
+      yield val
+      consumer rchan
+  (rchanl, rchanr) <- atomically $ do
+    chanl <- dupTChan chan
+    chanr <- dupTChan chan
+    return (chanl, chanr)
+  return (E (consumer rchanl), E (consumer rchanr))
