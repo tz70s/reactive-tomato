@@ -19,8 +19,8 @@ prepareEvent = do
   let cnt = foldp (+) 0 (RT.repeat (1 :: Int))
   runCluster (Broker "127.0.0.1" 6379) $ do
     sid0 <- sid "cnt0"
-    _    <- spawn sid0 cnt
-    filterJust <$> remote sid0
+    _    <- spawnE sid0 cnt
+    remoteE sid0
 
 {-
 prepareSignal :: IO (Event Int)

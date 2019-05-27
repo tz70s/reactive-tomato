@@ -36,7 +36,7 @@ testStatefulConter = do
     sid0 <- sid "cnt0"
     -- Both spawn and remote will fork new threads for asynchronously driving event propagation.
     -- You can explicitly cancel sid by cancelSid, however, it'll atomatically if events terminate.
-    _    <- spawn sid0 updates
-    filterJust <$> remote sid0
+    _    <- spawnE sid0 updates
+    remoteE sid0
   xs <- interpret (RT.take 10 cnt1)
   xs @?= [1 .. 10]

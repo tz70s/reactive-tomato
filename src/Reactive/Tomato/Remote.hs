@@ -58,7 +58,10 @@ module Reactive.Tomato.Remote
   , Cluster
   , runCluster
   , defaultLocal
-  , Remote(..)
+  , remoteE
+  , spawnE
+  , remoteS
+  , spawnS
   )
 where
 
@@ -77,7 +80,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Database.Redis as Redis
 
 -- | Reference identifier for signal, the type variable is useful for type inference.
-data Sid a = Sid { ids :: BS.ByteString, evar :: EVar (Maybe a), associate :: TVar [ThreadId] }
+data Sid a = Sid { ids :: BS.ByteString, evar :: EVar a, associate :: TVar [ThreadId] }
 
 -- | Construct a sid, in cluster monad.
 -- 
@@ -136,91 +139,84 @@ cancelSid (Sid _ _ ass) = do
   xs <- liftIO . atomically $ readTVar ass
   liftIO $ forM_ xs $ \tid' -> killThread tid'
 
--- | Class for remote execution.
-class Remote c where
-  -- | Create a new remote event or signal.
-  --
-  -- @
-  -- {-# LANGUAGE OverloadedStrings #-}
-  -- 
-  -- main = runCluster defaultLocal $ do
-  --   sig1 <- remote =<< sid "sig1"
-  --   -- use signal can infer the Sid type.
-  --   -- e.g. we can infer the (Num a) here.
-  --   sig2 = fmap (+1) sig1
-  --   react sig2 print
-  -- @
-  remote :: (MonadIO m, Serialise a) => Sid a -> Cluster m (c (Maybe a))
+-- | Create a new remote event or signal.
+--
+-- @
+-- {-# LANGUAGE OverloadedStrings #-}
+-- 
+-- main = runCluster defaultLocal $ do
+--   sig1 <- remote =<< sid "sig1"
+--   -- use signal can infer the Sid type.
+--   -- e.g. we can infer the (Num a) here.
+--   sig2 = fmap (+1) sig1
+--   react sig2 print
+-- @
+remoteE :: (MonadIO m, Serialise a) => Sid a -> Cluster m (Event a)
+remoteE (Sid sid' evar' _) = do
+  ClusterM conn <- ask
+  _ <- liftIO . forkIO $ Redis.runRedis conn $ Redis.pubSub (Redis.subscribe [sid']) $ \msg -> do
+    let deserde = deserialiseOrFail . BSL.fromStrict . Redis.msgMessage $ msg
+    case deserde of
+      Left  _     -> return ()
+      Right value -> emit evar' value
+    return mempty
+  return $ events evar'
 
-  -- | Spawn a remote event or signal.
-  -- 
-  -- Note that this is a blocking method, current thread will be blocked until signal terminate.
-  -- If you need to make this asynchronous,
-  -- the Cluster monad support 'MonadFork' for forking (same as your monad should support it).
-  --
-  -- @
-  -- main = runCluster defaultLocal $ do
-  --   timer0 <- every $ milli 10
-  --   let sig0 = throttle timer0 $ foldp (+) 0 $ constant 1
-  --   -- Spawn a distributed accumulator
-  --   sidcnt <- sid "cnt"
-  --   -- Note that this will block the thread.
-  --   spawn cnt sig0
-  -- @
-  spawn :: (MonadIO m, Serialise a) => Sid a -> c a -> Cluster m ()
 
-instance Remote Event where
-  remote (Sid sid' evar' _) = do
-    ClusterM conn <- ask
-    _ <- liftIO . forkIO $ Redis.runRedis conn $ Redis.pubSub (Redis.subscribe [sid']) $ \msg -> do
-      let deserde = deserialiseOrFail . BSL.fromStrict . Redis.msgMessage $ msg
-      case deserde of
-        Left  _     -> emit evar' Nothing
-        Right value -> emit evar' (Just value)
-      return mempty
-    return $ events evar'
+-- | Spawn a remote event or signal.
+-- 
+-- Note that this is a blocking method, current thread will be blocked until signal terminate.
+-- If you need to make this asynchronous,
+-- the Cluster monad support 'MonadFork' for forking (same as your monad should support it).
+--
+-- @
+-- main = runCluster defaultLocal $ do
+--   timer0 <- every $ milli 10
+--   let sig0 = throttle timer0 $ foldp (+) 0 $ constant 1
+--   -- Spawn a distributed accumulator
+--   sidcnt <- sid "cnt"
+--   -- Note that this will block the thread.
+--   spawn cnt sig0
+-- @
+spawnE :: (MonadIO m, Serialise a) => Sid a -> Event a -> Cluster m ()
+spawnE (Sid chnl _ ass) (E es) = do
+  ClusterM conn <- ask
+  tid'          <- liftIO $ forkIO $ runEffect $ es >-> go conn
+  liftIO $ atomically $ modifyTVar ass (tid' :)
+  return ()
+ where
+  go conn = do
+    val <- await
+    let serde = BSL.toStrict . serialise $ val
+    _ <- liftIO $ Redis.runRedis conn $ Redis.publish chnl serde
+    go conn
 
-  spawn (Sid chnl _ ass) (E es) = do
-    ClusterM conn <- ask
-    tid'          <- liftIO $ forkIO $ runEffect $ es >-> go conn
-    liftIO $ atomically $ modifyTVar ass (tid' :)
-    return ()
-   where
-    go conn = do
-      val <- await
-      let serde = BSL.toStrict . serialise $ val
-      _ <- liftIO $ Redis.runRedis conn $ Redis.publish chnl serde
-      go conn
+remoteS :: (MonadIO m, Serialise a) => Sid a -> a -> Cluster m (Signal a)
+remoteS (Sid sid' evar' _) initVal = do
+  ClusterM conn <- ask
+  _             <- liftIO . forkIO $ Redis.runRedis conn $ do
+    receive <- Redis.get sid'
 
-{-
-instance Remote Signal where
-  remote (Sid sid' evar' _) = do
-    ClusterM conn <- ask
-    _             <- liftIO . forkIO $ Redis.runRedis conn $ do
-      receive <- Redis.get sid'
+    case receive of
+        Right (Just msg) -> case deserialiseOrFail $ BSL.fromStrict msg of
+          Right v -> liftIO $ emit evar' v
+          Left  _ -> return ()
+        Right _ -> return ()
+        Left  _ -> return ()
 
-      let
-        deserde = case receive of
-          Right (Just msg) -> case deserialiseOrFail $ BSL.fromStrict msg of
-            Right v -> Just v
-            Left  _ -> Nothing
-          Right _ -> Nothing
-          Left  _ -> Nothing
+  liftIO $ signal const initVal (events evar')
 
-      liftIO $ emit evar' deserde
+spawnS :: (MonadIO m, Serialise a, Eq a) => Sid a -> Signal a -> Cluster m ()
+spawnS (Sid chnl _ ass) sig = do
+  ClusterM conn <- ask
+  let (E es)    = changes sig
+  tid'          <- liftIO $ forkIO $ runEffect $ es >-> go conn
+  liftIO $ atomically $ modifyTVar ass (tid' :)
+  return ()
+  where
+  go conn = do
+    val <- await
+    let serde = BSL.toStrict . serialise $ val
+    _ <- liftIO $ Redis.runRedis conn $ Redis.set chnl serde
+    go conn
 
-    liftIO $ newSignal Nothing (Just <$> filterJust (events evar'))
-
-  spawn (Sid chnl _ ass) sig = do
-    ClusterM conn <- ask
-    (E es)        <- liftIO $ changes sig
-    tid'          <- liftIO $ forkIO $ runEffect $ es >-> go conn
-    liftIO $ atomically $ modifyTVar ass (tid' :)
-    return ()
-   where
-    go conn = do
-      val <- await
-      let serde = BSL.toStrict . serialise $ val
-      _ <- liftIO $ Redis.runRedis conn $ Redis.set chnl serde
-      go conn
--}
